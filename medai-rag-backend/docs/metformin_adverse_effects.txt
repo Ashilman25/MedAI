@@ -1,0 +1,3 @@
+Title: Metformin — Common Adverse Effects and Safety
+URL: https://www.ncbi.nlm.nih.gov/books/NBK518983/
+Summary: Metformin is first‑line for type 2 diabetes. Common GI effects: nausea, abdominal discomfort, diarrhea (often transient). Metallic taste may occur. Vitamin B12 deficiency can develop with long‑term use; monitor if neuropathy or anemia. Contraindications/precautions: severe renal impairment (eGFR <30), acute tissue hypoxia, and peri‑iodinated contrast in certain settings. Rare but serious: lactic acidosis. Dose with food; consider ER formulation for GI tolerance.

@@ -1,0 +1,3 @@
+Title: Antibiotic Stewardship — Core Principles
+URL: https://www.cdc.gov/antibiotic-use/
+Summary: Use the right drug, dose, and duration; avoid antibiotics for viral infections. Obtain cultures before antibiotics when appropriate. De‑escalate based on microbiology and clinical response. Review ongoing need daily. Engage in facility‑level stewardship interventions (formulary, audit‑and‑feedback, order sets). Educate patients about expected illness course and safety‑netting.

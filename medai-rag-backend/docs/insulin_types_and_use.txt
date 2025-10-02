@@ -1,0 +1,3 @@
+Title: Insulin Types — Onset, Peak, Duration
+URL: https://www.ncbi.nlm.nih.gov/books/NBK278938/
+Summary: Rapid‑acting (lispro/aspart/glulisine): onset ~10–20 min, peak 1–3 h, duration 3–5 h. Short‑acting (regular): onset 30–60 min. Intermediate (NPH): peak 4–12 h. Long‑acting (glargine/detemir/degludec): minimal peak, 24–42 h duration. Match regimen to meals and basal needs; educate on hypoglycemia recognition and sick‑day rules.

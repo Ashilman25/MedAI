@@ -1,0 +1,3 @@
+Title: Adult Immunization Schedule — Overview
+URL: https://www.cdc.gov/vaccines/schedules/
+Summary: Ensure routine vaccination: influenza annually; Tdap once then Td/Tdap q10y; zoster ≥50y; pneumococcal per risk/age; MMR/varicella for non‑immune. Consider Hep A/B, HPV, and meningococcal based on risk. Review contraindications (e.g., live vaccines in severe immunosuppression or pregnancy). Document shared decision‑making.

@@ -1,0 +1,3 @@
+Title: Atrial Fibrillation — Anticoagulation
+URL: https://www.acc.org/
+Summary: Assess stroke risk with CHA2DS2‑VASc; consider OAC for most men ≥2 and women ≥3. DOACs preferred over warfarin in non‑valvular AF unless contraindicated. Balance bleeding risk (HAS‑BLED) and address modifiable factors (blood pressure, alcohol). Peri‑procedural management depends on thromboembolic risk and procedure bleeding risk.

@@ -1,0 +1,3 @@
+Title: Chronic Kidney Disease — Medication Dosing
+URL: https://kdigo.org/
+Summary: Adjust renally cleared drugs by eGFR/CrCl; avoid nephrotoxins where possible (NSAIDs, certain contrast). Monitor potassium with RAAS blockers and MRAs. Metformin generally safe if eGFR ≥30; stop in acute kidney injury or severe hypoxia. Many antibiotics need dose or interval adjustment in CKD. Consider referral for eGFR <30 or rapid decline.

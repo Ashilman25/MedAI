@@ -1,0 +1,3 @@
+Title: Heart Failure (HFrEF) — Guideline‑Directed Therapy
+URL: https://www.ahajournals.org/doi/10.1161/CIR.0000000000001063
+Summary: Foundational quadruple therapy improves outcomes: ARNI (or ACEi/ARB), evidence‑based beta‑blocker, MRA, and SGLT2 inhibitor. Titrate to target doses as tolerated; monitor blood pressure, potassium, and renal function. Consider diuretics for congestion. Vaccinations, sodium restriction, and exercise encouraged. Device therapy (ICD/CRT) for selected patients after GDMT optimization.

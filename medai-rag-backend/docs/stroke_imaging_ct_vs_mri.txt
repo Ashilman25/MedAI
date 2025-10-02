@@ -1,0 +1,3 @@
+Title: Acute Ischemic Stroke Imaging — CT vs MRI
+URL: https://www.ahajournals.org/doi/10.1161/STR.0000000000000409
+Summary: Non‑contrast CT rapidly excludes intracranial hemorrhage and is widely available; it is the fastest initial test for suspected stroke. MRI with DWI is more sensitive for early ischemic changes. CTA/CTP or MRA/perfusion can guide reperfusion decisions. Choice depends on timing, availability, and contraindications. Do not delay thrombolysis for advanced imaging when not necessary.
