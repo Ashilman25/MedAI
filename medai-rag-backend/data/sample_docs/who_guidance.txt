@@ -1,0 +1,3 @@
+Title: WHO Clinical Guidance – Generic Example
+URL: https://www.who.int/
+Summary: Placeholder guidance emphasizing evidence‑based practice and patient‑specific considerations.
