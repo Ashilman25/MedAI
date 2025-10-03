@@ -34,3 +34,27 @@ export async function listDocuments() {
   if (!r.ok) throw new Error(`API error: ${r.status}`);
   return r.json();
 }
+
+
+export async function expandSources(query, options = {}) {
+  const API_BASE = import.meta.env.VITE_API_BASE_URL || "";
+  const body = {
+    query,
+    top_k: options.top_k ?? Number(import.meta.env.VITE_DEFAULT_TOP_K ?? 5),
+    wide: options.wide ?? true,
+    target_confidence: options.target_confidence ?? Number(import.meta.env.VITE_CONFIDENCE_THRESHOLD ?? 0.62),
+    max_passes: options.max_passes ?? 3,
+    per_pass_retmax: options.per_pass_retmax ?? 60,
+    mindate: options.mindate ?? 2018,
+    fallback_mindate: options.fallback_mindate ?? 2010,
+    lang: options.lang ?? "en",
+    types: options.types ?? ["Guideline","Practice Guideline","Systematic Review","Review"],
+  };
+  const r = await fetch(`${API_BASE}/expand-sources`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!r.ok) throw new Error(`API error: ${r.status}`);
+  return r.json();
+}

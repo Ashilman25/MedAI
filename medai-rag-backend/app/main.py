@@ -8,6 +8,8 @@ from .ingest import ingest_paths
 from .rag import answer
 from app.rag import get_embedder, provider_signature
 from app.vectorstore.faiss_store import FaissStore
+from .models import ExpandRequest, ExpandResponse
+from .ingest import fetch_pubmed_docs, ingest_text_items
 
 
 s = get_settings()
@@ -19,6 +21,41 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+def _expand_synonyms(q: str) -> str:
+    """
+    Very small, clinical synonym expander for PubMed terms (safe defaults).
+    You can extend this over time or make it MeSH-aware later.
+    """
+    syn = {
+        "doac": "direct oral anticoagulant",
+        "af": "atrial fibrillation",
+        "htn": "hypertension",
+        "t2dm": "type 2 diabetes",
+        "mi": "myocardial infarction",
+        "nsaid": "nonsteroidal anti-inflammatory drug",
+        "copd": "chronic obstructive pulmonary disease",
+        "pe": "pulmonary embolism",
+        "dvt": "deep vein thrombosis",
+        "uti": "urinary tract infection",
+        "hf": "heart failure",
+    }
+    q_low = q.lower()
+    extra = []
+    for k, v in syn.items():
+        if k in q_low and v not in q_low:
+            extra.append(v)
+    return q if not extra else f"{q} {' '.join(extra)}"
+
+
+def _default_types_for_pass(pass_idx: int) -> list[str]:
+    # Tight to broad
+    if pass_idx == 1:
+        return ["Guideline", "Practice Guideline", "Systematic Review", "Review"]
+    if pass_idx == 2:
+        return ["Systematic Review", "Meta-Analysis", "Review", "Guideline"]
+    # Final pass: go broad (no filter)
+    return []
 
 @app.get("/health")
 def health(): return {"ok": True}
@@ -64,3 +101,97 @@ def list_docs():
     except Exception as e:
         return {"error": str(e)}
 
+
+@app.post("/expand-sources", response_model=ExpandResponse)
+def expand_sources(req: ExpandRequest):
+    """
+    Wide/iterative expansion:
+      - Multiple passes that broaden filters (types/date/synonyms) until:
+        * target confidence reached, or
+        * max_passes exhausted.
+      - All fetched docs are ingested (dedup by pmid) and persist in store.
+      - Returns updated answer (+stats).
+    """
+    # env defaults
+    env_types = [t.strip() for t in os.getenv("PUBMED_FILTER_TYPES", "Guideline,Review").split(",") if t.strip()]
+    lang = req.lang or os.getenv("PUBMED_LANG", "en")
+    base_mindate = req.mindate if req.mindate is not None else (int(os.getenv("PUBMED_MINDATE", "0")) or None)
+    target_conf = req.target_confidence
+    max_passes = max(1, int(req.max_passes))
+    per_pass_retmax = max(10, int(req.per_pass_retmax))
+
+    # base query (with small synonym boost)
+    base_query = _expand_synonyms(req.query)
+
+    total_found = total_added = total_skipped = 0
+    last_answer = None
+
+    for p in range(1, max_passes + 1):
+        # pass-specific shaping
+        if req.types and p == 1:
+            types = req.types
+        else:
+            types = _default_types_for_pass(p)
+
+        # widen date on later passes
+        if p == 1:
+            mindate = base_mindate
+        elif p == 2:
+            mindate = base_mindate or 2015
+        else:
+            mindate = min(req.fallback_mindate, (base_mindate or req.fallback_mindate))
+
+        # widen query slightly on later passes (adds "therapy" or "management" if not present)
+        q = base_query
+        if p == 2 and all(w not in q.lower() for w in ["therapy", "management", "treatment"]):
+            q = f"{q} therapy management"
+        if p >= 3 and "diagnosis" not in q.lower():
+            q = f"{q} diagnosis"
+
+        # breadth of retmax can increase per pass
+        retmax = per_pass_retmax * (1 if p == 1 else 2 if p == 2 else 3)
+
+        # 1) fetch
+        pm_docs = fetch_pubmed_docs(
+            query=q,
+            retmax=retmax,
+            mindate=mindate,
+            maxdate=None,
+            lang=lang,
+            filter_types=types or None,
+        )
+        found = len(pm_docs)
+
+        # 2) ingest (dedup by pmid)
+        stats = ingest_text_items(pm_docs)
+        added = stats.get("added", 0)
+        skipped = stats.get("skipped", 0)
+        total_found += found
+        total_added += added
+        total_skipped += skipped
+
+        # 3) re-answer
+        last = answer(req.query, req.top_k)
+        last_answer = last
+
+        # early exit if confident enough or nothing more to add
+        if (last["confidence"] >= target_conf) or (found == 0 and added == 0):
+            break
+
+        # if not wide, only do pass 1
+        if not req.wide:
+            break
+
+    # final payload
+    if not last_answer:
+        last_answer = answer(req.query, req.top_k)
+
+    return ExpandResponse(
+        answer=last_answer["answer"],
+        citations=last_answer["citations"],
+        confidence=last_answer["confidence"],
+        found=total_found,
+        added=total_added,
+        skipped=total_skipped,
+        passes=min(max_passes, p),
+    )
