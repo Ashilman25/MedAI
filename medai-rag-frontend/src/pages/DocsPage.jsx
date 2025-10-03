@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { listDocuments } from "../lib/api";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
+
+const PAGE_SIZE = 20;
 
 const badgeStyles = {
   pubmed: "text-teal-700 border-teal-300",
@@ -25,6 +27,8 @@ export default function DocsPage() {
   const [err, setErr] = useState(null);
   const [q, setQ] = useState("");
   const [srcFilter, setSrcFilter] = useState("all"); // all | pubmed | local | other
+  const [page, setPage] = useState(1);
+  const prefersReducedMotion = useReducedMotion();
 
   useEffect(() => {
     let mounted = true;
@@ -43,6 +47,7 @@ export default function DocsPage() {
     return () => { mounted = false; };
   }, []);
 
+  // Filter
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
     return docs.filter(d => {
@@ -51,12 +56,28 @@ export default function DocsPage() {
         (d.title || "").toLowerCase().includes(needle) ||
         (d.journal || "").toLowerCase().includes(needle) ||
         (d.snippet || "").toLowerCase().includes(needle) ||
-        (d.pmid || "").toLowerCase().includes(needle);
+        (String(d.pmid || "")).toLowerCase().includes(needle);
       const matchesSrc =
         srcFilter === "all" || (d.source || "other").toLowerCase() === srcFilter;
       return matchesText && matchesSrc;
     });
   }, [docs, q, srcFilter]);
+
+  // Reset to page 1 when filters/search change
+  useEffect(() => { setPage(1); }, [q, srcFilter]);
+
+  // Pagination math
+  const total = filtered.length;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const startIdx = (page - 1) * PAGE_SIZE;
+  const endIdx = Math.min(startIdx + PAGE_SIZE, total);
+  const pageItems = filtered.slice(startIdx, endIdx);
+
+  // Scroll to top of list on page change
+  useEffect(() => {
+    const el = document.getElementById("docs-list-top");
+    if (el) el.scrollIntoView({ behavior: prefersReducedMotion ? "auto" : "smooth", block: "start" });
+  }, [page, prefersReducedMotion]);
 
   return (
     <div className="min-h-screen w-full bg-white dark:bg-gray-900">
@@ -65,9 +86,7 @@ export default function DocsPage() {
           <h1 className="text-3xl font-semibold tracking-tight text-gray-900 dark:text-gray-100">
             Indexed Documents
           </h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Local &amp; PubMed Sources
-          </p>
+          <p className="mt-1 text-sm text-gray-500">Local &amp; PubMed Sources</p>
         </header>
 
         {/* Controls */}
@@ -96,6 +115,18 @@ export default function DocsPage() {
           </div>
         </div>
 
+        {/* Status row */}
+        {!loading && !err && (
+          <div className="mb-2 flex items-center justify-between text-xs text-gray-500">
+            <span>
+              {total > 0
+                ? `Results ${startIdx + 1}–${endIdx} of ${total}`
+                : "No results"}
+            </span>
+            <span>Page {page} / {totalPages}</span>
+          </div>
+        )}
+
         {/* Body */}
         {loading && (
           <div className="mt-10 text-center">
@@ -116,18 +147,20 @@ export default function DocsPage() {
           </div>
         )}
 
+        {/* List */}
+        <div id="docs-list-top" />
         <div className="mt-4 grid grid-cols-1 gap-3">
-          {filtered.map((d, i) => (
+          {pageItems.map((d, i) => (
             <motion.a
-              key={`${d.url || d.title || i}-${i}`}
+              key={`${d.url || d.title || i}-${startIdx + i}`}
               href={d.url || "#"}
               target="_blank"
               rel="noreferrer"
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.18, delay: Math.min(i, 8) * 0.02 }}
+              initial={prefersReducedMotion ? false : { opacity: 0, y: 6 }}
+              animate={prefersReducedMotion ? {} : { opacity: 1, y: 0 }}
+              transition={{ duration: 0.15 }}
               className="block rounded-xl border border-gray-200/60 bg-gradient-to-r from-white to-gray-50 p-4 shadow-sm transition hover:shadow-md dark:from-gray-900 dark:to-gray-800 dark:border-gray-800"
-              whileHover={{ scale: 1.02 }}
+              whileHover={prefersReducedMotion ? {} : { scale: 1.01 }}
             >
               <div className="flex items-start justify-between gap-3">
                 <h3 className="text-base font-medium text-gray-900 dark:text-gray-100">
@@ -141,11 +174,65 @@ export default function DocsPage() {
               <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-gray-500">
                 {d.journal && <span className="truncate">{d.journal}</span>}
                 {d.year && <span>• {d.year}</span>}
-                {d.pmid && <span className="rounded border border-gray-200 px-1.5 py-0.5 dark:border-gray-700">PMID: {d.pmid}</span>}
+                {d.pmid && (
+                  <span className="rounded border border-gray-200 px-1.5 py-0.5 dark:border-gray-700">
+                    PMID: {d.pmid}
+                  </span>
+                )}
               </div>
             </motion.a>
           ))}
         </div>
+
+        {/* Pagination controls */}
+        {!loading && !err && totalPages > 1 && (
+          <div className="mt-6 flex items-center justify-between">
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page === 1}
+              className={`rounded-lg px-3 py-1.5 text-sm border ${
+                page === 1
+                  ? "text-gray-400 border-gray-200 cursor-not-allowed"
+                  : "text-gray-700 border-gray-300 hover:bg-gray-50 dark:text-gray-200 dark:border-gray-700"
+              }`}
+            >
+              ← Prev
+            </button>
+            <div className="hidden sm:flex gap-1">
+              {Array.from({ length: totalPages }).slice(0, 7).map((_, idx) => {
+                // Simple pager: show up to first 7 pages; can be expanded later
+                const p = idx + 1;
+                return (
+                  <button
+                    key={p}
+                    onClick={() => setPage(p)}
+                    className={`rounded-md px-2.5 py-1 text-sm border ${
+                      p === page
+                        ? "border-blue-500 text-blue-700 dark:text-blue-300"
+                        : "border-gray-300 text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300"
+                    }`}
+                  >
+                    {p}
+                  </button>
+                );
+              })}
+              {totalPages > 7 && (
+                <span className="px-2 py-1 text-sm text-gray-500">… {totalPages}</span>
+              )}
+            </div>
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
+              className={`rounded-lg px-3 py-1.5 text-sm border ${
+                page === totalPages
+                  ? "text-gray-400 border-gray-200 cursor-not-allowed"
+                  : "text-gray-700 border-gray-300 hover:bg-gray-50 dark:text-gray-200 dark:border-gray-700"
+              }`}
+            >
+              Next →
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
