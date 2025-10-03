@@ -6,6 +6,7 @@ import App from './App'
 import Landing from './pages/Landing'
 import Chat from './pages/Chat'
 import Upload from './pages/Upload'
+import DocsPage from './pages/DocsPage'
 
 createRoot(document.getElementById('root')).render(
   <React.StrictMode>
@@ -16,6 +17,7 @@ createRoot(document.getElementById('root')).render(
           <Route path='chat' element={<Chat />} />
           <Route path='upload' element={<Upload />} />
           <Route path='*' element={<Navigate to='/' />} />
+          <Route path='docs' element={<DocsPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

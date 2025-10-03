@@ -1,0 +1,152 @@
+import { useEffect, useMemo, useState } from "react";
+import { listDocuments } from "../lib/api";
+import { motion } from "framer-motion";
+
+const badgeStyles = {
+  pubmed: "text-teal-700 border-teal-300",
+  local: "text-gray-700 border-gray-300",
+  other: "text-blue-700 border-blue-300",
+};
+
+function SourceBadge({ source = "other" }) {
+  const key = (source || "other").toLowerCase();
+  const cls = badgeStyles[key] || badgeStyles.other;
+  const label = key === "pubmed" ? "PubMed" : key === "local" ? "Local" : "Other";
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 text-xs border rounded-full ${cls}`}>
+      {label}
+    </span>
+  );
+}
+
+export default function DocsPage() {
+  const [docs, setDocs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState(null);
+  const [q, setQ] = useState("");
+  const [srcFilter, setSrcFilter] = useState("all"); // all | pubmed | local | other
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const data = await listDocuments();
+        if (mounted) {
+          setDocs(Array.isArray(data.docs) ? data.docs : []);
+          setLoading(false);
+        }
+      } catch (e) {
+        setErr(e?.message || "Failed to load documents");
+        setLoading(false);
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
+
+  const filtered = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    return docs.filter(d => {
+      const matchesText =
+        !needle ||
+        (d.title || "").toLowerCase().includes(needle) ||
+        (d.journal || "").toLowerCase().includes(needle) ||
+        (d.snippet || "").toLowerCase().includes(needle) ||
+        (d.pmid || "").toLowerCase().includes(needle);
+      const matchesSrc =
+        srcFilter === "all" || (d.source || "other").toLowerCase() === srcFilter;
+      return matchesText && matchesSrc;
+    });
+  }, [docs, q, srcFilter]);
+
+  return (
+    <div className="min-h-screen w-full bg-white dark:bg-gray-900">
+      <div className="mx-auto max-w-5xl px-4 py-8">
+        <header className="mb-6">
+          <h1 className="text-3xl font-semibold tracking-tight text-gray-900 dark:text-gray-100">
+            Indexed Documents
+          </h1>
+          <p className="mt-1 text-sm text-gray-500">
+            Local &amp; PubMed Sources
+          </p>
+        </header>
+
+        {/* Controls */}
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <input
+            type="search"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search title, journal, PMID, or snippet…"
+            className="w-full sm:max-w-md rounded-lg border border-gray-300 bg-white/80 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
+          />
+          <div className="flex gap-2">
+            {["all", "pubmed", "local", "other"].map((k) => (
+              <button
+                key={k}
+                onClick={() => setSrcFilter(k)}
+                className={`rounded-full border px-3 py-1 text-xs transition ${
+                  srcFilter === k
+                    ? "border-blue-500 text-blue-700 dark:text-blue-300"
+                    : "border-gray-300 text-gray-600 dark:border-gray-700 dark:text-gray-300"
+                }`}
+              >
+                {k[0].toUpperCase() + k.slice(1)}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Body */}
+        {loading && (
+          <div className="mt-10 text-center">
+            <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
+            <p className="mt-3 text-sm text-gray-500">Loading documents…</p>
+          </div>
+        )}
+
+        {err && !loading && (
+          <div className="mt-6 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+            {err}
+          </div>
+        )}
+
+        {!loading && !err && filtered.length === 0 && (
+          <div className="mt-10 rounded-xl border border-gray-200 bg-gray-50 p-8 text-center text-sm text-gray-600 dark:border-gray-800 dark:bg-gray-800/40 dark:text-gray-300">
+            No documents indexed yet. Try uploading files or ingesting PubMed sources.
+          </div>
+        )}
+
+        <div className="mt-4 grid grid-cols-1 gap-3">
+          {filtered.map((d, i) => (
+            <motion.a
+              key={`${d.url || d.title || i}-${i}`}
+              href={d.url || "#"}
+              target="_blank"
+              rel="noreferrer"
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.18, delay: Math.min(i, 8) * 0.02 }}
+              className="block rounded-xl border border-gray-200/60 bg-gradient-to-r from-white to-gray-50 p-4 shadow-sm transition hover:shadow-md dark:from-gray-900 dark:to-gray-800 dark:border-gray-800"
+              whileHover={{ scale: 1.02 }}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <h3 className="text-base font-medium text-gray-900 dark:text-gray-100">
+                  {d.title || "Untitled"}
+                </h3>
+                <SourceBadge source={d.source} />
+              </div>
+              <p className="mt-1 line-clamp-3 text-sm text-gray-600 dark:text-gray-300">
+                {d.snippet || "—"}
+              </p>
+              <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-gray-500">
+                {d.journal && <span className="truncate">{d.journal}</span>}
+                {d.year && <span>• {d.year}</span>}
+                {d.pmid && <span className="rounded border border-gray-200 px-1.5 py-0.5 dark:border-gray-700">PMID: {d.pmid}</span>}
+              </div>
+            </motion.a>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}

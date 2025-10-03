@@ -15,7 +15,7 @@ export default function App() {
           <div className='flex items-center gap-4 text-sm'>
             <Link to='/chat' className={navCls(pathname==='/chat')}>Chat</Link>
             <Link to='/upload' className={navCls(pathname==='/upload')}>Upload</Link>
-            <a href='https://nih.gov' target='_blank' rel='noreferrer' className='text-gray-500 hover:text-gray-700'>Docs</a>
+            <Link to='/docs' className={navCls(pathname==='/docs')}>Docs</Link>
           </div>
         </div>
       </nav>

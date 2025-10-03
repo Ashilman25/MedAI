@@ -38,7 +38,7 @@ async def ingest(files: List[UploadFile] = File(...)):
     return IngestResponse(**res)
 
 
-@app.get("/list-docs")
+@app.get("/documents")
 def list_docs():
     """
     List all documents currently indexed (local + PubMed).

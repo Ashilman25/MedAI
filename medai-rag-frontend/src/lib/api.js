@@ -27,3 +27,10 @@ export async function ingest(file) {
   if (!r.ok) throw new Error(`API error: ${r.status}`)
   return r.json()
 }
+
+export async function listDocuments() {
+  const API_BASE = import.meta.env.VITE_API_BASE_URL || "";
+  const r = await fetch(`${API_BASE}/documents`, { method: "GET" });
+  if (!r.ok) throw new Error(`API error: ${r.status}`);
+  return r.json();
+}
