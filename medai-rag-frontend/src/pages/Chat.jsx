@@ -72,9 +72,12 @@ export default function Chat() {
           </div>
           <div className='p-3 border-t border-gray-100'>
             <div className='flex items-end gap-2'>
-              <textarea value={input} onChange={e=>setInput(e.target.value)} rows={2}
-                        placeholder='Ask about treatments, drugs, or guidelines…'
-                        className='w-full rounded-2xl border-gray-300 focus:border-medical-blue focus:ring-medical-blue text-sm' />
+              <textarea value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault(); // stop new line
+                  onSend();           // send message
+                  }
+                }} rows={2} placeholder="Ask about treatments, drugs, or guidelines…" className="w-full rounded-2xl border-gray-300 focus:border-medical-blue focus:ring-medical-blue text-sm" />
               <button onClick={onSend} className='px-4 py-2 rounded-2xl bg-medical-blue text-white font-medium'>Send</button>
             </div>
           </div>
