@@ -6,6 +6,8 @@ import { ask, expandSources } from '../lib/api'
 import { loadChat, saveChat, clearChat as clearStore } from '../store/localStore'
 import { exportToPDF } from '../lib/export'
 import { motion, AnimatePresence } from 'framer-motion'
+import { useAuth } from '../context/AuthContext'
+
 
 export default function Chat() {
   const [messages, setMessages] = useState(()=>loadChat())
@@ -23,6 +25,8 @@ export default function Chat() {
   const [scanStats, setScanStats] = useState(null)   // { found, added, skipped }
   const [showScanSummary, setShowScanSummary] = useState(false) // linger after scan
   const CONF_T = Number(import.meta.env.VITE_CONFIDENCE_THRESHOLD ?? 0.55)
+
+  const { user } = useAuth()
 
   useEffect(()=>{ saveChat(messages) }, [messages])
   useEffect(()=>{ scrollRef.current?.scrollTo(0, scrollRef.current.scrollHeight) }, [messages, loading, scanning, showScanSummary])
@@ -133,6 +137,11 @@ export default function Chat() {
         <div className='lg:col-span-2 rounded-2xl border border-gray-200 bg-white shadow-card flex flex-col h-[calc(100vh-200px)] print-area'>
           <header className='px-4 py-3 border-b border-gray-100 sticky top-0 bg-white z-10'>
             <div className='font-semibold'>Ask MedAI</div>
+            {!user && (
+              <div className='mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900'>
+                Guest mode: limited queries & no saved history. <a href="/signin" className="underline">Sign in</a> for full access.
+              </div>
+            )}
           </header>
 
           <div ref={scrollRef} className='flex-1 overflow-auto p-4 space-y-4'>
@@ -243,7 +252,7 @@ export default function Chat() {
                   exit={{ opacity: 0, y: 6, scale: 0.98 }}
                   className="rounded-xl border border-teal-200 bg-teal-50 p-3 text-xs text-teal-900"
                 >
-                  ✅ Scan complete. Found <span className="font-semibold">{scanStats.found}</span> new sources, added <span className="font-semibold">{scanStats.added}</span> to your library. View them on the <a href="/docs" className="text-blue-600 underline">Docs page</a>.
+                  Scan complete. Found <span className="font-semibold">{scanStats.found}</span> new sources, added <span className="font-semibold">{scanStats.added}</span> to your library. View them on the <a href="/docs" className="text-blue-600 underline">Docs page</a>.
                 </motion.div>
               )}
             </AnimatePresence>

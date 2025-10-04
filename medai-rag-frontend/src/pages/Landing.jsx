@@ -1,6 +1,10 @@
 import React from 'react'
 import { useNavigate } from 'react-router-dom'
 import Logo from '../assets/logo.svg'
+
+
+
+
 export default function Landing() {
   const nav = useNavigate()
   return (
@@ -13,7 +17,8 @@ export default function Landing() {
         <p className='text-gray-700 text-lg'>Your AI‑powered medical reference assistant with grounded, cited answers.</p>
         <div className='flex gap-3'>
           <button onClick={()=>nav('/chat')} className='px-5 py-3 rounded-2xl bg-medical-blue text-white font-medium'>Continue as Guest</button>
-          <button onClick={()=>alert('OAuth coming soon')} className='px-5 py-3 rounded-2xl border border-gray-300 bg-white font-medium'>Sign in (Coming Soon)</button>
+          <button onClick={()=>nav('/signin')} className='px-5 py-3 rounded-2xl border border-gray-300 bg-white font-medium'>Sign in</button>
+
         </div>
         <ul className='text-sm text-gray-600 list-disc pl-5'>
           <li>Cited sources in every response</li>
