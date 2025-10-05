@@ -29,6 +29,10 @@ export default function Chat() {
   const [showScanSummary, setShowScanSummary] = useState(false)
   const [historyKey, setHistoryKey] = useState(0) // force HistoryPanel refresh
 
+  // For my clear chat button
+  const [showClearModal, setShowClearModal] = useState(false)
+  const [dontAskAgain, setDontAskAgain] = useState(false)
+
   const CONF_T = Number(import.meta.env.VITE_CONFIDENCE_THRESHOLD ?? 0.55)
   const { user } = useAuth()
 
@@ -88,6 +92,62 @@ export default function Chat() {
       textarea.style.height = `${textarea.scrollHeight}px` // grow to fit content
     }
   }
+
+  function clearPrefKey() {
+    if (!user) return null
+    const id = user.uid || user.email || 'anon'
+    return `medai_skip_clear_modal_${id}`
+  }
+
+  function shouldSkipClearConfirm() {
+    if (!user) return false //guests always see modal, maybe can change later
+    const key = clearPrefKey()
+    if (!key) return false
+    try {
+      return localStorage.getItem(key) === '1'
+    } catch {
+      return false
+    } 
+  }
+
+  function onClearClick() {
+    if (shouldSkipClearConfirm()) {
+      clearChatView()
+    } else {
+      setDontAskAgain(false)
+      setShowClearModal(true)
+    }
+  }
+
+  function confirmClear() {
+    if (user && dontAskAgain) {
+      const key = clearPrefKey()
+      if (key) {
+        try {
+          localStorage.setItem(key, '1') 
+        } catch {
+          // ignore
+        }
+      }
+    }
+    setShowClearModal(false)
+    clearChatView()
+  }
+
+  function cancelClear() {
+    setShowClearModal(false)
+  }
+
+  //feature to allow esc or enter for cancel/confirm
+  useEffect(() => {
+    if (!showClearModal) return
+    function onKey(e) {
+      if (e.key === 'Escape') cancelClear()
+      if (e.key === 'Enter')  confirmClear()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [showClearModal, dontAskAgain, user])
 
   async function onSend() {
     const q = input.trim()
@@ -264,7 +324,6 @@ export default function Chat() {
     setHistoryKey(k => k + 1)
   }
   function clearChatView() {
-    if (!confirm('Clear current chat view?')) return
     setMessages([])
     setLastAnswer(null)
     setChatId(null)
@@ -451,12 +510,78 @@ export default function Chat() {
           <div className='rounded-2xl border border-gray-200 bg-white p-3 shadow-card no-print'>
             <div className='flex gap-2'>
               <button onClick={exportToPDF} className='flex-1 px-4 py-2 rounded-xl border border-gray-300 bg-white text-sm'>Export PDF</button>
-              <button onClick={clearChatView} className='flex-1 px-4 py-2 rounded-xl bg-gray-900 text-white text-sm'>Clear</button>
+              <button onClick={onClearClick} className='flex-1 px-4 py-2 rounded-xl bg-gray-900 text-white text-sm'>Clear</button>
             </div>
           </div>
         </aside>
 
       </div>
+      <AnimatePresence>
+        {showClearModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 grid place-items-center bg-black/40 backdrop-blur-sm p-4"
+            aria-modal="true"
+            role="dialog"
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 12, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 8, scale: 0.98 }}
+              className="w-full max-w-md rounded-2xl border border-gray-200 bg-white shadow-2xl"
+            >
+              <div className="p-5">
+                <div className="flex items-start gap-3">
+                  <div className="h-10 w-10 rounded-full bg-gray-900 text-white grid place-items-center shadow-md">
+                    {/* minimalist trash icon via emoji; swap for an SVG if you prefer */}
+                    <span aria-hidden>🗑️</span>
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-semibold text-gray-900">Clear current chat?</h2>
+                    <p className="mt-1 text-sm text-gray-600">
+                      This only clears the current view. Your saved chats remain in the History panel.
+                    </p>
+                  </div>
+                </div>
+
+                {user && (
+                  <label className="mt-4 flex items-center gap-2 text-sm text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={dontAskAgain}
+                      onChange={e => setDontAskAgain(e.target.checked)}
+                      className="h-4 w-4 rounded border-gray-300 text-gray-900 focus:ring-gray-900"
+                    />
+                    <span>Don't ask again</span>
+                  </label>
+                )}
+
+                <div className="mt-5 flex items-center justify-end gap-2">
+                  <button
+                    onClick={cancelClear}
+                    className="px-4 py-2 rounded-xl border border-gray-300 bg-white text-sm hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={confirmClear}
+                    className="px-4 py-2 rounded-xl bg-gray-900 text-white text-sm hover:bg-gray-800 shadow-sm"
+                  >
+                    Clear now
+                  </button>
+                </div>
+
+                <div className="mt-3 text-[11px] text-gray-500">
+                  Press <span className="font-semibold">Enter</span> to confirm or <span className="font-semibold">Esc</span> to cancel.
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
     </section>
   )
 }
