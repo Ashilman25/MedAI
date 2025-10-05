@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { motion } from "framer-motion";
+import PasswordField from "../components/ui/PasswordField";
 
 export default function SignIn() {
   const { signIn, resetPassword } = useAuth();
@@ -55,11 +56,13 @@ export default function SignIn() {
             type="email" placeholder="Email"
             value={email} onChange={(e)=>setEmail(e.target.value)}
           />
-          <input
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500"
-            type="password" placeholder="Password"
-            value={pw} onChange={(e)=>setPw(e.target.value)}
+
+          <PasswordField
+            value={pw}
+            onChange={(e)=>setPw(e.target.value)}
+            placeholder="Password"
           />
+
           {err && <div className="rounded border border-red-200 bg-red-50 p-2 text-sm text-red-700">{err}</div>}
           {notice && <div className="rounded border border-teal-200 bg-teal-50 p-2 text-sm text-teal-700">{notice}</div>}
           <button
