@@ -32,6 +32,8 @@ export default function Chat() {
   const CONF_T = Number(import.meta.env.VITE_CONFIDENCE_THRESHOLD ?? 0.55)
   const { user } = useAuth()
 
+  const textareaRef = useRef(null);
+
   // auth aware init
   useEffect(() => {
     ChatStore.initSession({ user })
@@ -74,6 +76,17 @@ export default function Chat() {
     const lowConf = (res?.confidence ?? 0) < CONF_T
     const fewCites = (res?.citations?.length ?? 0) < 2
     return lowConf || fewCites
+  }
+  
+  function handleInputChange(e) {
+    setInput(e.target.value)
+
+    // Auto-grow logic
+    const textarea = textareaRef.current
+    if (textarea) {
+      textarea.style.height = 'auto' // reset height
+      textarea.style.height = `${textarea.scrollHeight}px` // grow to fit content
+    }
   }
 
   async function onSend() {
@@ -345,17 +358,18 @@ export default function Chat() {
           <div className='p-3 border-t border-gray-100'>
             <div className='flex items-end gap-2'>
               <textarea
+                ref={textareaRef}
                 value={input}
-                onChange={e => setInput(e.target.value)}
+                onChange={handleInputChange}
                 onKeyDown={e => {
                   if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault()
                     onSend()
                   }
                 }}
-                rows={2}
                 placeholder="Ask about treatments, drugs, or guidelines…"
-                className="w-full rounded-2xl border-gray-300 focus:border-medical-blue focus:ring-medical-blue text-sm"
+                className="w-full rounded-2xl border-gray-300 focus:border-medical-blue focus:ring-medical-blue text-sm resize-none overflow-hidden"
+                rows={1}
               />
               <button
                 onClick={onSend}
