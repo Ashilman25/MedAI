@@ -1,50 +1,75 @@
-# MedAI‑RAG (Monorepo: Frontend + Backend)
+# 🧠 MedAI-RAG
 
-This package bundles both the **React + Vite frontend** and the **FastAPI backend**.
-Use the steps below to run locally, or see the optional Docker Compose section.
+# MedAI-RAG is an AI-powered medical reference assistant that provides grounded, cited answers 
+# to clinical questions. It is a full-stack application featuring a React frontend and a FastAPI backend, 
+# implementing a Retrieval-Augmented Generation (RAG) pipeline to ensure responses are based on 
+# a supplied knowledge base.
 
-## Quick Start (Two terminals)
+# The system can ingest medical literature from local files (PDFs, text files) and directly from PubMed, 
+# building a searchable vector index. When a user asks a question, the system retrieves relevant text chunks, 
+# which are then passed to a large language model to synthesize an evidence-based answer, 
+# complete with citations and a confidence score.
 
-### 1) Backend
-```bash
-cd medai-rag-backend
-python3 -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-cp .env.example .env && nano .env
-# Set (for local dev):
-#   EMBEDDING_PROVIDER=sentence
-#   MOCK_COMPLETIONS=true            # to develop without OpenAI
-#   CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
-# Optional: ingest samples
-python -m app.ingest --path data/sample_docs
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
 
-### 2) Frontend (in new terminal)
-```bash
-cd medai-rag-frontend
-npm install
-npm install -D @vitejs/plugin-react
-cp .env.example .env && nano .env
-# Set:
-#   VITE_API_BASE_URL=http://127.0.0.1:8000
-#   VITE_MOCK_MODE=false
-npm run dev
-```
-Open: http://localhost:5173
+# --------------------------------------------------------
+# 🚀 Key Features
+# --------------------------------------------------------
+# • Retrieval-Augmented Generation (RAG)
+# • Dynamic Source Ingestion (local files + PubMed)
+# • Interactive Chat UI with source citations
+# • Confidence scoring and PubMed expansion
+# • Firebase authentication or Guest mode
+# • FastAPI + FAISS backend for efficient search
+# --------------------------------------------------------
 
----
 
-## Optional: Docker Compose (dev-ish)
-```bash
-docker compose up --build
-```
-- Backend: http://127.0.0.1:8000
-- Frontend: http://127.0.0.1:5173
+# --------------------------------------------------------
+# 📁 Repository Layout
+# --------------------------------------------------------
+# medai-rag-frontend/   → React + Vite frontend (Chat, Upload, Docs)
+# medai-rag-backend/    → FastAPI backend (RAG pipeline, ingestion)
+# docker-compose.yml    → Run both services together for local dev
+# --------------------------------------------------------
 
-> Note: The compose file uses a simple Node container for the Vite dev server. Hot reload works, but local node_modules are inside the container.
 
-## Repo Layout
-- `medai-rag-frontend/` — React + Vite + Tailwind UI for chat, citations, confidence
-- `medai-rag-backend/` — FastAPI + FAISS (with NumPy fallback), ingestion, RAG pipeline
-- `docker-compose.yml` — optional dev runner
+# --------------------------------------------------------
+# 🧩 Backend Details
+# --------------------------------------------------------
+# Framework: FastAPI
+# Vector Search: FAISS (NumPy fallback)
+# Embeddings: sentence-transformers or OpenAI
+# LLM Completions: OpenAI or mock
+# Data Ingestion: pypdf, biopython (PubMed)
+
+# 🔌 API Endpoints
+# POST /ask             → Ask a question, get answer + citations
+# POST /ingest          → Upload and process local documents
+# POST /expand-sources  → Auto-search PubMed for better context
+# GET  /documents       → List all indexed documents
+# GET  /health          → Simple health check
+
+# 📚 Ingestion Options
+# 1. Local files (PDFs, TXT, CSV) → via /upload
+# 2. PubMed → via CLI or expand-sources endpoint
+
+# --------------------------------------------------------
+# 💻 Frontend Details
+# --------------------------------------------------------
+# Framework: React + Vite
+# Styling: Tailwind CSS
+# Animations: Framer Motion
+# Routing: React Router
+# State: Firebase (auth) or localStorage (guest)
+
+# 🔧 Frontend Pages
+# • /chat  → Ask questions, view answers + sources
+# • /docs  → Browse indexed documents
+# • /upload → Add PDFs or text documents
+# • /login → Firebase auth 
+
+# --------------------------------------------------------
+# ⚠️ Disclaimer
+# --------------------------------------------------------
+# This application is for educational and research purposes only.
+# It is NOT intended for patient use or medical decision-making.
+# Always verify information against trusted primary sources.
