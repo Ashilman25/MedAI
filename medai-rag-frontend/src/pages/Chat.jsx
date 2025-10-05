@@ -92,40 +92,86 @@ export default function Chat() {
   async function onSend() {
     const q = input.trim()
     if (!q) return
+
+    // clear input + shrink textarea
     setInput('')
     setLastQuery(q)
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto'
+    }
 
     // ensure a chat
     let id = chatId
-    if (!id) {
-      const created = await ChatStore.createChat(q)
-      id = created.chatId
-      setChatId(id)
-      setHistoryKey(k => k + 1)
+    try {
+      if (!id) {
+        const created = await ChatStore.createChat(q)
+        id = created.chatId
+        setChatId(id)
+        setHistoryKey(k => k + 1)
+      }
+    } catch (e) {
+      console.error('createChat failed:', e)
+      // still show the bubble so it never feels dead
     }
 
-    // persist + paint user msg
-    const userMsg = { role:'user', content:q, createdAt: Date.now() }
-    await ChatStore.appendMessage(id, userMsg)
-    setMessages(m => [...m, { ...userMsg }])
+    // 1) Optimistically render user message
+    const userMsg = { role: 'user', content: q, createdAt: Date.now() }
+    setMessages(m => [...m, userMsg])
 
-    // ask backend
+    // 2) Persist in background (don’t block UI)
+    if (id) {
+      ChatStore.appendMessage(id, userMsg).catch(err => {
+      console.error('appendMessage (user) failed:', err)
+      
+    })
+
+    }
+
+
+    // 3) Ask backend
     setLoading(true)
     try {
       const res = await ask(q)
-      const aiMsg = { role:'assistant', content:res.answer, citations:res.citations, confidence:res.confidence, createdAt: Date.now() }
-      await ChatStore.appendMessage(id, aiMsg)
+
+      // Paint assistant message immediately (optimistic)
+      const aiMsg = {
+        role: 'assistant',
+        content: res.answer,
+        citations: res.citations,
+        confidence: res.confidence,
+        createdAt: Date.now()
+      }
       setMessages(m => [...m, { ...aiMsg }])
       setLastAnswer(res)
       setExpandPrompt(shouldOfferExpansion(res))
       setHistoryKey(k => k + 1)
+
+      // Persist in background
+      if (id) {
+        ChatStore.appendMessage(id, aiMsg).catch(err => {
+          console.error('appendMessage (assistant) failed:', err)
+        })
+      }
+
+
     } catch (e) {
-      const errMsg = { role:'assistant', content:`Error: ${e.message}`, createdAt: Date.now() }
-      await ChatStore.appendMessage(id, errMsg)
+      console.error('ask() failed:', e)
+      const errMsg = {
+        role: 'assistant',
+        content: `Error: ${e.message}`,
+        createdAt: Date.now()
+      }
       setMessages(m => [...m, errMsg])
       setLastAnswer(null)
       setExpandPrompt(false)
       setHistoryKey(k => k + 1)
+
+      // persist error message in background (best-effort)
+      if (id) {
+        ChatStore.appendMessage(id, errMsg).catch(err => {
+          console.error('appendMessage (error) failed:', err)
+        })
+      }
     } finally {
       setLoading(false)
     }
@@ -164,7 +210,12 @@ export default function Chat() {
         id = created.chatId
         setChatId(id)
       }
-      await ChatStore.appendMessage(id, aiMsg)
+      if (id) {
+        ChatStore.appendMessage(id, aiMsg).catch(err => {
+          console.error('appendMessage (scan assistant) failed: ', err)
+        })
+      }
+
       setMessages(m => [...m, { ...aiMsg }])
       setLastAnswer(resp)
       setHistoryKey(k => k + 1)
@@ -178,7 +229,12 @@ export default function Chat() {
       return () => { clearTimeout(t1); clearTimeout(t2) }
     } catch (e) {
       const errMsg = { role:'assistant', content:`Source expansion failed: ${e.message}`, createdAt: Date.now() }
-      if (chatId) await ChatStore.appendMessage(chatId, errMsg)
+      if (chatId) {
+        ChatStore.appendMessage(chatId, errMsg).catch(err => {
+          console.error('appendMessage (scan error) failed:', err)
+        })
+      }
+
       setMessages(m => [...m, errMsg])
       setTimeout(() => {
         setScanning(false)
