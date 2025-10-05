@@ -7,3 +7,47 @@
   .print-area { padding: 0 !important; box-shadow: none !important; }
   body { background: white !important; }
 }
+
+/* Subtle breathing for the mock frame */
+@keyframes breath { 0%,100% { transform: scale(1); } 50% { transform: scale(1.01); } }
+.animate-breath { animation: breath 3.2s ease-in-out infinite; }
+
+/* Logo ripple glow */
+@keyframes ripple {
+  0% { transform: scale(0.9); opacity: 0.5; }
+  70% { transform: scale(1.25); opacity: 0.15; }
+  100% { transform: scale(1.4); opacity: 0; }
+}
+.animate-ripple { animation: ripple 1.9s ease-out infinite; }
+
+/* Shimmer for skeleton cards */
+@keyframes shimmer {
+  0% { background-position: -450px 0; }
+  100% { background-position: 450px 0; }
+}
+.shimmer {
+  background-image: linear-gradient(
+    90deg,
+    rgba(229, 231, 235, 0) 0%,
+    rgba(229, 231, 235, 0.9) 50%,
+    rgba(229, 231, 235, 0) 100%
+  );
+  background-size: 600px 100%;
+  animation: shimmer 1.6s infinite;
+}
+
+/* Guest typewriter effect */
+@keyframes typing {
+  from { width: 0 }
+  to { width: 100% }
+}
+@keyframes caret {
+  50% { border-color: transparent }
+}
+.typewriter {
+  overflow: hidden;
+  white-space: nowrap;
+  border-right: 2px solid rgba(15, 23, 42, 0.7);
+  width: 100%;
+  animation: typing 2.4s steps(36), caret .9s step-end infinite;
+}
