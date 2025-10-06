@@ -78,3 +78,18 @@ export async function deleteChatCascade(uid, chatId) {
   // delete chat
   await deleteDoc(doc(db, "users", uid, "chats", chatId));
 }
+
+/**
+ * Source Sets (nice-to-have)
+ */
+export async function saveSourceSet(uid, payload) {
+  // payload: { name, keywords, options, createdAt }
+  const ref = collection(db, "users", uid, "source_sets");
+  await addDoc(ref, payload);
+}
+
+export async function listSourceSets(uid) {
+  const ref = collection(db, "users", uid, "source_sets");
+  const snap = await getDocs(query(ref, orderBy("createdAt", "desc")));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}

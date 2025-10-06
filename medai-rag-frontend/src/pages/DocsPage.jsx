@@ -1,6 +1,9 @@
+// src/pages/DocsPage.jsx
 import { useEffect, useMemo, useState } from "react";
 import { listDocuments } from "../lib/api";
 import { motion, useReducedMotion } from "framer-motion";
+import { useAuth } from "../context/AuthContext"; 
+import AddSourcesModal from "../components/Docs/AddSourcesModal";
 
 const PAGE_SIZE = 20;
 
@@ -22,35 +25,38 @@ function SourceBadge({ source = "other" }) {
 }
 
 export default function DocsPage() {
+  const { user } = useAuth(); 
   const [docs, setDocs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState(null);
   const [q, setQ] = useState("");
   const [srcFilter, setSrcFilter] = useState("all"); // all | pubmed | local | other
   const [page, setPage] = useState(1);
+  const [showAdd, setShowAdd] = useState(false); 
   const prefersReducedMotion = useReducedMotion();
 
+  async function refreshDocs() {
+    try {
+      setLoading(true);
+      const data = await listDocuments(user?.uid); // <-- pass uid
+      setDocs(Array.isArray(data.docs) ? data.docs : []);
+      setErr(null);
+    } catch (e) {
+      setErr(e?.message || "Failed to load documents");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        const data = await listDocuments();
-        if (mounted) {
-          setDocs(Array.isArray(data.docs) ? data.docs : []);
-          setLoading(false);
-        }
-      } catch (e) {
-        setErr(e?.message || "Failed to load documents");
-        setLoading(false);
-      }
-    })();
-    return () => { mounted = false; };
-  }, []);
+    refreshDocs();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.uid]);
 
   // Filter
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    return docs.filter(d => {
+    return docs.filter((d) => {
       const matchesText =
         !needle ||
         (d.title || "").toLowerCase().includes(needle) ||
@@ -64,7 +70,9 @@ export default function DocsPage() {
   }, [docs, q, srcFilter]);
 
   // Reset to page 1 when filters/search change
-  useEffect(() => { setPage(1); }, [q, srcFilter]);
+  useEffect(() => {
+    setPage(1);
+  }, [q, srcFilter]);
 
   // Pagination math
   const total = filtered.length;
@@ -98,7 +106,7 @@ export default function DocsPage() {
             placeholder="Search title, journal, PMID, or snippet…"
             className="w-full sm:max-w-md rounded-lg border border-gray-300 bg-white/80 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
           />
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2">
             {["all", "pubmed", "local", "other"].map((k) => (
               <button
                 key={k}
@@ -112,17 +120,23 @@ export default function DocsPage() {
                 {k[0].toUpperCase() + k.slice(1)}
               </button>
             ))}
+
+            {/* Add Sources (signed-in only) */}
+            {user && (
+              <button
+                onClick={() => setShowAdd(true)}
+                className="ml-1 rounded-full border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+              >
+                + Add Sources
+              </button>
+            )}
           </div>
         </div>
 
         {/* Status row */}
         {!loading && !err && (
           <div className="mb-2 flex items-center justify-between text-xs text-gray-500">
-            <span>
-              {total > 0
-                ? `Results ${startIdx + 1}–${endIdx} of ${total}`
-                : "No results"}
-            </span>
+            <span>{total > 0 ? `Results ${startIdx + 1}–${endIdx} of ${total}` : "No results"}</span>
             <span>Page {page} / {totalPages}</span>
           </div>
         )}
@@ -143,7 +157,11 @@ export default function DocsPage() {
 
         {!loading && !err && filtered.length === 0 && (
           <div className="mt-10 rounded-xl border border-gray-200 bg-gray-50 p-8 text-center text-sm text-gray-600 dark:border-gray-800 dark:bg-gray-800/40 dark:text-gray-300">
-            No documents indexed yet. Try uploading files or ingesting PubMed sources.
+            {user ? (
+              "No documents yet. Try Add Sources or upload local files."
+            ) : (
+              "Sign in to add and view your sources."
+            )}
           </div>
         )}
 
@@ -200,7 +218,6 @@ export default function DocsPage() {
             </button>
             <div className="hidden sm:flex gap-1">
               {Array.from({ length: totalPages }).slice(0, 7).map((_, idx) => {
-                // Simple pager: show up to first 7 pages; can be expanded later
                 const p = idx + 1;
                 return (
                   <button
@@ -234,6 +251,13 @@ export default function DocsPage() {
           </div>
         )}
       </div>
+
+      {/* Modal */}
+      <AddSourcesModal
+        open={!!showAdd}
+        onClose={() => setShowAdd(false)}
+        onComplete={refreshDocs}
+      />
     </div>
   );
 }

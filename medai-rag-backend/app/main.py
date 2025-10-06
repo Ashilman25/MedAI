@@ -1,7 +1,7 @@
 import os
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, UploadFile, File, Query
 from fastapi.middleware.cors import CORSMiddleware
-from typing import List
+from typing import List, Optional
 from .config import get_settings
 from .models import AskRequest, AskResponse, IngestResponse
 from .ingest import ingest_paths
@@ -76,18 +76,31 @@ async def ingest(files: List[UploadFile] = File(...)):
 
 
 @app.get("/documents")
-def list_docs():
+def list_docs(uid: Optional[str] = Query(default=None)):
     """
-    List all documents currently indexed (local + PubMed).
+    List documents indexed.
+
+    - If uid provided: return docs owned by uid OR global docs (no owner_uids).
+    - If uid not provided: return only global docs.
     """
     s = get_settings()
     embedder = get_embedder()
     store = FaissStore(s.STORAGE_DIR, embedder.dim, provider_signature(embedder))
 
     try:
-        # store._meta is a list of all metadata dictionaries
         docs = []
         for md in getattr(store, "_meta", []):
+            owners = md.get("owner_uids") or []
+
+            if uid:
+                # Include global docs (no owners) OR docs owned by this uid
+                if owners and uid not in owners:
+                    continue
+            else:
+                # Guest: only include global docs (no owners)
+                if owners:
+                    continue
+
             docs.append({
                 "title": md.get("title"),
                 "url": md.get("url"),
@@ -95,7 +108,7 @@ def list_docs():
                 "pmid": md.get("pmid", None),
                 "journal": md.get("journal", None),
                 "year": md.get("year", None),
-                "snippet": md.get("snippet", "")[:180]
+                "snippet": (md.get("snippet", "") or "")[:180],
             })
         return {"count": len(docs), "docs": docs}
     except Exception as e:
@@ -105,12 +118,7 @@ def list_docs():
 @app.post("/expand-sources", response_model=ExpandResponse)
 def expand_sources(req: ExpandRequest):
     """
-    Wide/iterative expansion:
-      - Multiple passes that broaden filters (types/date/synonyms) until:
-        * target confidence reached, or
-        * max_passes exhausted.
-      - All fetched docs are ingested (dedup by pmid) and persist in store.
-      - Returns updated answer (+stats).
+    Wide/iterative expansion with PubMed, ingest, re-answer.
     """
     # env defaults
     env_types = [t.strip() for t in os.getenv("PUBMED_FILTER_TYPES", "Guideline,Review").split(",") if t.strip()]
@@ -119,6 +127,8 @@ def expand_sources(req: ExpandRequest):
     target_conf = req.target_confidence
     max_passes = max(1, int(req.max_passes))
     per_pass_retmax = max(10, int(req.per_pass_retmax))
+
+
 
     # base query (with small synonym boost)
     base_query = _expand_synonyms(req.query)
@@ -141,14 +151,13 @@ def expand_sources(req: ExpandRequest):
         else:
             mindate = min(req.fallback_mindate, (base_mindate or req.fallback_mindate))
 
-        # widen query slightly on later passes (adds "therapy" or "management" if not present)
+        # widen query slightly on later passes
         q = base_query
         if p == 2 and all(w not in q.lower() for w in ["therapy", "management", "treatment"]):
             q = f"{q} therapy management"
         if p >= 3 and "diagnosis" not in q.lower():
             q = f"{q} diagnosis"
 
-        # breadth of retmax can increase per pass
         retmax = per_pass_retmax * (1 if p == 1 else 2 if p == 2 else 3)
 
         # 1) fetch
@@ -162,8 +171,8 @@ def expand_sources(req: ExpandRequest):
         )
         found = len(pm_docs)
 
-        # 2) ingest (dedup by pmid)
-        stats = ingest_text_items(pm_docs)
+        # 2) ingest (dedup by pmid), tag owner
+        stats = ingest_text_items(pm_docs, owner_uid=req.owner_uid)
         added = stats.get("added", 0)
         skipped = stats.get("skipped", 0)
         total_found += found
@@ -174,15 +183,12 @@ def expand_sources(req: ExpandRequest):
         last = answer(req.query, req.top_k)
         last_answer = last
 
-        # early exit if confident enough or nothing more to add
-        if (last["confidence"] >= target_conf) or (found == 0 and added == 0):
+        # early exit
+        if (last["confidence"] >= target_conf) or (found == 0 and added == 0) or not req.wide:
             break
 
-        # if not wide, only do pass 1
-        if not req.wide:
-            break
 
-    # final payload
+
     if not last_answer:
         last_answer = answer(req.query, req.top_k)
 

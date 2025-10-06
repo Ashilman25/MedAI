@@ -33,6 +33,7 @@ class ExpandRequest(BaseModel):
     fallback_mindate: int = 2010        # if pass 1 yields little/no material
     lang: Optional[str] = "en"
     types: Optional[List[str]] = None   # custom types for pass 1 (if provided)
+    owner_uid: Optional[str] = None
 
 class ExpandResponse(BaseModel):
     answer: str

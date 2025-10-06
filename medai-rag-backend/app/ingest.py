@@ -1,5 +1,5 @@
 # app/ingest.py
-import os, csv, argparse, json
+import os, csv, argparse, json, time
 from typing import List, Dict, Any, Tuple, Optional
 
 from .config import get_settings
@@ -199,6 +199,11 @@ def fetch_pubmed_docs(
     if api_key:
         Entrez.api_key = api_key
 
+    try:
+        Entrez.sleep_between_tries = 1
+    except Exception:
+        pass
+
     term = build_pubmed_term(query, lang, filter_types, mindate, maxdate)
     info(f"PubMed search term: {term}")
 
@@ -216,6 +221,8 @@ def fetch_pubmed_docs(
     record = Entrez.read(handle)
     ids = record.get("IdList", [])
     handle.close()
+    time.sleep(0.35)
+
 
     if not ids:
         info("No PubMed IDs returned for this query.")
@@ -259,26 +266,28 @@ def fetch_pubmed_docs(
     return out_docs
 
 
-def ingest_text_items(items: List[Dict[str, Any]]) -> Dict[str, Any]:
+def ingest_text_items(items: List[Dict[str, Any]], owner_uid: Optional[str] = None) -> Dict[str, Any]:
+
     """
     items: list of dicts with keys:
       - 'text' (str)
       - metadata fields like 'title', 'url', 'pmid', 'journal', 'year'
+    owner_uid: if provided, tag chunks so they are visible to that user only
+    dry_run: when True, compute would-be counts but DO NOT persist anything
     """
     if not items:
         return {"ok": True, "added": 0, "skipped": 0}
 
     s = get_settings()
-    embedder = get_embedder()
+    embedder = get_embedder()  
     store = FaissStore(s.STORAGE_DIR, embedder.dim, provider_signature(embedder))
 
-    # Build a set of existing PMIDs for dedup (if present in metadata)
+    # Dedup by existing PMIDs
     existing_pmids = set()
     try:
-        if hasattr(store, "_meta"):
-            for md in store._meta:
-                if isinstance(md, dict) and md.get("pmid"):
-                    existing_pmids.add(str(md["pmid"]))
+        for md in getattr(store, "_meta", []):
+            if isinstance(md, dict) and md.get("pmid"):
+                existing_pmids.add(str(md["pmid"]))
     except Exception:
         pass
 
@@ -294,7 +303,7 @@ def ingest_text_items(items: List[Dict[str, Any]]) -> Dict[str, Any]:
 
         pmid = str(doc.get("pmid") or "")
         if pmid and pmid in existing_pmids:
-            # Skip duplicates
+            # duplicate doc — skip fully
             continue
 
         title = doc.get("title") or "Source"
@@ -307,6 +316,9 @@ def ingest_text_items(items: List[Dict[str, Any]]) -> Dict[str, Any]:
             skipped += 1
             continue
 
+
+
+        # Normal (commit) path
         embs = embedder.encode(chunks)
         metadatas = []
         for c in chunks:
@@ -322,6 +334,11 @@ def ingest_text_items(items: List[Dict[str, Any]]) -> Dict[str, Any]:
                 md["journal"] = journal
             if year:
                 md["year"] = year
+            if owner_uid:
+                owners = md.get("owner_uids") or []
+                if owner_uid not in owners:
+                    owners = [owner_uid] if not owners else owners + [owner_uid]
+                md["owner_uids"] = owners
             metadatas.append(md)
 
         store.add(embs, metadatas)
@@ -329,9 +346,9 @@ def ingest_text_items(items: List[Dict[str, Any]]) -> Dict[str, Any]:
         if pmid:
             existing_pmids.add(pmid)
 
-    info(
-        f"Ingested (text items): added={added}, skipped={skipped}, total={FaissStore(s.STORAGE_DIR, embedder.dim, provider_signature(embedder)).size()}"
-    )
+    
+    info(f"Ingested (text items): added={added}, skipped={skipped}, total={store.size()}")
+
     return {"ok": True, "added": added, "skipped": skipped}
 
 
