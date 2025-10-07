@@ -64,14 +64,14 @@ def health(): return {"ok": True}
 def ask(req: AskRequest): return AskResponse(**answer(req.query, req.top_k))
 
 @app.post("/ingest", response_model=IngestResponse)
-async def ingest(files: List[UploadFile] = File(...)):
+async def ingest(files: List[UploadFile] = File(...), uid: Optional[str] = Query(default=None)):
     upload_dir = os.path.join(s.STORAGE_DIR, "_uploads"); os.makedirs(upload_dir, exist_ok=True)
     paths = []
     for f in files:
         dest = os.path.join(upload_dir, f.filename)
         with open(dest, "wb") as out: out.write(await f.read())
         paths.append(dest)
-    res = ingest_paths(paths)
+    res = ingest_paths(paths, owner_uid=uid)
     return IngestResponse(**res)
 
 
@@ -91,15 +91,20 @@ def list_docs(uid: Optional[str] = Query(default=None)):
         docs = []
         for md in getattr(store, "_meta", []):
             owners = md.get("owner_uids") or []
-
+            if isinstance(owners, str):
+                owners = [owners]
+                
             if uid:
-                # Include global docs (no owners) OR docs owned by this uid
+                # Include global (no owners) OR owned-by-uid
                 if owners and uid not in owners:
                     continue
             else:
-                # Guest: only include global docs (no owners)
+                # Guest sees only global
                 if owners:
                     continue
+                
+            scope = "global" if not owners else ("mine" if (uid and uid in owners) else "private")
+
 
             docs.append({
                 "title": md.get("title"),
@@ -109,6 +114,7 @@ def list_docs(uid: Optional[str] = Query(default=None)):
                 "journal": md.get("journal", None),
                 "year": md.get("year", None),
                 "snippet": (md.get("snippet", "") or "")[:180],
+                "owner_scope": scope,
             })
         return {"count": len(docs), "docs": docs}
     except Exception as e:

@@ -16,14 +16,17 @@ export async function ask(query, top_k = DEFAULT_TOP_K) {
   return r.json()
 }
 
-export async function ingest(file) {
+export async function ingest(file, uid) {
   if (MOCK || !API_BASE) {
     const { mockIngest } = await import('./mock')
     return mockIngest(file)
   }
   const form = new FormData()
   form.append('files', file)
-  const r = await fetch(`${API_BASE}/ingest`, { method: 'POST', body: form })
+
+  const q = uid ? `?uid=${encodeURIComponent(uid)}` : ''
+  const r = await fetch(`${API_BASE}/ingest${q}`, { method: 'POST', body: form })
+
   if (!r.ok) throw new Error(`API error: ${r.status}`)
   return r.json()
 }

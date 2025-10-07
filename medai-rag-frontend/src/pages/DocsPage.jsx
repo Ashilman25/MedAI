@@ -1,5 +1,6 @@
 // src/pages/DocsPage.jsx
 import { useEffect, useMemo, useState } from "react";
+import { useRef } from "react";
 import { listDocuments } from "../lib/api";
 import { motion, useReducedMotion } from "framer-motion";
 import { useAuth } from "../context/AuthContext"; 
@@ -25,7 +26,9 @@ function SourceBadge({ source = "other" }) {
 }
 
 export default function DocsPage() {
-  const { user } = useAuth(); 
+  const { user, authLoading } = useAuth();
+  const reqIdRef = useRef(0);
+
   const [docs, setDocs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState(null);
@@ -36,22 +39,32 @@ export default function DocsPage() {
   const prefersReducedMotion = useReducedMotion();
 
   async function refreshDocs() {
+    const myReqId = ++reqIdRef.current;
+
     try {
+
       setLoading(true);
-      const data = await listDocuments(user?.uid); // <-- pass uid
+      const data = await listDocuments(user?.uid);
+      if (myReqId !== reqIdRef.current) return;
       setDocs(Array.isArray(data.docs) ? data.docs : []);
       setErr(null);
+
     } catch (e) {
+
+      if (myReqId !== reqIdRef.current) return;
       setErr(e?.message || "Failed to load documents");
+
     } finally {
-      setLoading(false);
+      if (myReqId === reqIdRef.current) setLoading(false);
     }
   }
 
   useEffect(() => {
-    refreshDocs();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.uid]);
+    if (!authLoading) {
+      refreshDocs();
+    }
+
+  }, [authLoading, user?.uid]);
 
   // Filter
   const filtered = useMemo(() => {
@@ -184,7 +197,21 @@ export default function DocsPage() {
                 <h3 className="text-base font-medium text-gray-900 dark:text-gray-100">
                   {d.title || "Untitled"}
                 </h3>
-                <SourceBadge source={d.source} />
+                <div className="flex items-center gap-2">
+                  <SourceBadge source={d.source} />
+                    {d.owner_scope && (
+                      <span
+                        className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] ${
+                          d.owner_scope === "mine"
+                          ? "border-emerald-300 text-emerald-700"
+                          : "border-gray-300 text-gray-600"
+                      }`}
+                      title={d.owner_scope === "mine" ? "Visible only to you" : "Visible to everyone"}
+                    >
+                      {d.owner_scope === "mine" ? "Mine" : "Global"}
+                    </span>
+                  )}
+                  </div>
               </div>
               <p className="mt-1 line-clamp-3 text-sm text-gray-600 dark:text-gray-300">
                 {d.snippet || "—"}

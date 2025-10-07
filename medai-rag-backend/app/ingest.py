@@ -30,7 +30,7 @@ def read_file_text(path: str) -> str:
     return ""
 
 
-def ingest_paths(paths: List[str]) -> Dict[str, Any]:
+def ingest_paths(paths: List[str], owner_uid: Optional[str] = None) -> Dict[str, Any]:
     s = get_settings()
     embedder = get_embedder()
     store = FaissStore(s.STORAGE_DIR, embedder.dim, provider_signature(embedder))
@@ -73,16 +73,19 @@ def ingest_paths(paths: List[str]) -> Dict[str, Any]:
             continue
 
         embs = embedder.encode(chunks)
-        metadatas = [
-            {
+        metadatas = []
+        for c in chunks:
+            md = {
                 "title": title,
                 "url": url,
                 "snippet": c[:240],
                 "source_path": os.path.abspath(p),
                 "source": "local",
             }
-            for c in chunks
-        ]
+            if owner_uid:
+                md["owner_uids"] = [owner_uid]
+            metadatas.append(md)
+
         store.add(embs, metadatas)
         added += len(chunks)
 
@@ -282,14 +285,31 @@ def ingest_text_items(items: List[Dict[str, Any]], owner_uid: Optional[str] = No
     embedder = get_embedder()  
     store = FaissStore(s.STORAGE_DIR, embedder.dim, provider_signature(embedder))
 
-    # Dedup by existing PMIDs
-    existing_pmids = set()
+    # - If owner_uid is provided: dedupe against PMIDs already owned by this user.
+    # - If owner_uid is None (global): dedupe against PMIDs that are global (no owner_uids).
+    existing_pmids_for_context = set()
     try:
         for md in getattr(store, "_meta", []):
-            if isinstance(md, dict) and md.get("pmid"):
-                existing_pmids.add(str(md["pmid"]))
+            if not isinstance(md, dict):
+                continue
+            pm = md.get("pmid")
+            if not pm:
+                continue
+            owners = md.get("owner_uids") or []
+            if isinstance(owners, str):
+                owners = [owners]
+            if owner_uid:
+                # Only consider items already owned by this user
+                if owners and owner_uid in owners:
+                    existing_pmids_for_context.add(str(pm))
+            else:
+                # Global context: only consider truly global items (no owners)
+                if not owners:
+                    existing_pmids_for_context.add(str(pm))
     except Exception:
         pass
+
+
 
     added = 0
     skipped = 0
@@ -302,8 +322,8 @@ def ingest_text_items(items: List[Dict[str, Any]], owner_uid: Optional[str] = No
             continue
 
         pmid = str(doc.get("pmid") or "")
-        if pmid and pmid in existing_pmids:
-            # duplicate doc — skip fully
+        # Per-context dedupe: skip only if this PMID already exists in THIS visibility context
+        if pmid and pmid in existing_pmids_for_context:
             continue
 
         title = doc.get("title") or "Source"
@@ -344,7 +364,9 @@ def ingest_text_items(items: List[Dict[str, Any]], owner_uid: Optional[str] = No
         store.add(embs, metadatas)
         added += len(chunks)
         if pmid:
-            existing_pmids.add(pmid)
+            # Mark this PMID as present for this context to avoid double-adding within same run
+            existing_pmids_for_context.add(pmid)
+
 
     
     info(f"Ingested (text items): added={added}, skipped={skipped}, total={store.size()}")
