@@ -2,9 +2,8 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { useAuth } from "../../context/AuthContext";
-import { expandSources } from "../../lib/api";
+import { expandSources, listDocuments } from "../../lib/api";
 import { saveSourceSet } from "../../lib/db";
-
 
 const PUB_TYPES = [
   "Guideline",
@@ -26,7 +25,7 @@ function parseKeywords(input) {
   );
 }
 
-// concurrency pool runner
+// concurrency pool runner (available if you want to add parallelism later)
 async function runPool(items, limit, task, onStep) {
   const results = new Array(items.length);
   let nextIndex = 0;
@@ -113,6 +112,45 @@ function Tooltip({ text, children }) {
   );
 }
 
+/* ------------------------ New helpers for the 'Done' view ------------------------ */
+
+function computeSourceCounts(docs = []) {
+  const counts = { pubmed: 0, local: 0, other: 0, total: 0 };
+  for (const d of docs) {
+    const k = (d?.source || "other").toLowerCase();
+    if (k === "pubmed") counts.pubmed++;
+    else if (k === "local") counts.local++;
+    else counts.other++;
+    counts.total++;
+  }
+  return counts;
+}
+
+function Stat({ label, value }) {
+  return (
+    <div className="rounded-xl border border-gray-200 bg-white p-3 text-center shadow-sm dark:border-gray-800 dark:bg-gray-800/60">
+      <div className="text-2xl font-semibold text-gray-900 dark:text-gray-100">{value}</div>
+      <div className="mt-1 text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">{label}</div>
+    </div>
+  );
+}
+
+function SourcePill({ label, delta, tone }) {
+  const color =
+    tone === "pubmed"
+      ? "border-teal-300 text-teal-700"
+      : tone === "local"
+      ? "border-gray-300 text-gray-700 dark:text-gray-200"
+      : "border-blue-300 text-blue-700";
+  return (
+    <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs ${color}`}>
+      <span>{label}</span>
+      <span className={delta > 0 ? "font-medium" : "opacity-60"}>+{delta}</span>
+    </span>
+  );
+}
+
+/* -------------------------------------------------------------------------------- */
 
 export default function AddSourcesModal({ open, onClose, onComplete }) {
   const { user } = useAuth();
@@ -122,19 +160,14 @@ export default function AddSourcesModal({ open, onClose, onComplete }) {
   const [minDate, setMinDate] = useState(2018);
   const [lang, setLang] = useState("en");
   const [types, setTypes] = useState(() => new Set(PUB_TYPES.slice(0, 4))); // default: 4 checked
-  
 
-  
-  
   const [targetConfidence, setTargetConfidence] = useState(
     Number(import.meta.env.VITE_CONFIDENCE_THRESHOLD ?? 0.62)
   );
-
   const [maxPasses, setMaxPasses] = useState(3);
   const [perPassRetmax, setPerPassRetmax] = useState(
     Number(import.meta.env.VITE_PER_PASS_RETMAX ?? 60)
   );
-
   const [topK, setTopK] = useState(
     Number(import.meta.env.VITE_DEFAULT_TOP_K ?? 5)
   );
@@ -150,12 +183,16 @@ export default function AddSourcesModal({ open, onClose, onComplete }) {
   const controllersRef = useRef([]); // for cancellation
   const cancelledRef = useRef(false);
 
+  // new: counts to compute "Added by source"
+  const [baseCounts, setBaseCounts] = useState(null);   // {pubmed, local, other, total}
+  const [finalCounts, setFinalCounts] = useState(null); // {pubmed, local, other, total}
+  const [copying, setCopying] = useState(false);
+
   function handleCancel() {
     cancelledRef.current = true;
     controllersRef.current.forEach((c) => c?.abort?.());
     onClose?.();
   }
-
 
   const terms = useMemo(() => parseKeywords(keywordsInput), [keywordsInput]);
   const selectedTypes = useMemo(() => Array.from(types), [types]);
@@ -167,6 +204,8 @@ export default function AddSourcesModal({ open, onClose, onComplete }) {
       setProgress([]);
       setOverallPct(0);
       setSummary({ found: 0, added: 0, skipped: 0, passes: 0 });
+      setBaseCounts(null);
+      setFinalCounts(null);
       controllersRef.current.forEach((c) => c?.abort?.());
       controllersRef.current = [];
     }
@@ -189,7 +228,15 @@ export default function AddSourcesModal({ open, onClose, onComplete }) {
     const queue = parseKeywords(keywordsInput);
     if (queue.length === 0) return;
 
-    // Optional: save "source set" (unchanged)
+    // Snapshot baseline counts before this run
+    try {
+      const before = await listDocuments(user.uid);
+      setBaseCounts(computeSourceCounts(before?.docs || []));
+    } catch (_) {
+      setBaseCounts(null);
+    }
+
+    // Optional: save "source set"
     if (saveSet && setName.trim()) {
       try {
         await saveSourceSet(user.uid, {
@@ -280,15 +327,56 @@ export default function AddSourcesModal({ open, onClose, onComplete }) {
     }
 
     if (!cancelledRef.current) {
-      setSummary(totals);
+      // Snapshot final counts and compute delta-by-source
+      let finals = null;
+      try {
+        const after = await listDocuments(user.uid);
+        finals = computeSourceCounts(after?.docs || []);
+        setFinalCounts(finals);
+      } catch (_) {
+        setFinalCounts(null);
+      }
+
+      const bySource =
+        baseCounts && finals
+          ? {
+              pubmed: Math.max(0, finals.pubmed - baseCounts.pubmed),
+              local: Math.max(0, finals.local - baseCounts.local),
+              other: Math.max(0, finals.other - baseCounts.other),
+              total: Math.max(0, finals.total - baseCounts.total),
+            }
+          : null;
+
+      setSummary({ ...totals, bySource });
       setPhase("done");
     }
   }
 
-
   async function handleCloseAndRefresh() {
     await onComplete?.();
     onClose?.();
+  }
+
+  // New: utilities for the done footer
+  async function copyRunLog() {
+    try {
+      setCopying(true);
+      const payload = {
+        terms,
+        options: { minDate, lang, selectedTypes, targetConfidence, maxPasses, perPassRetmax, topK },
+        progress,
+        summary,
+      };
+      await navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
+    } catch (_) {
+      // ignore
+    } finally {
+      setTimeout(() => setCopying(false), 900);
+    }
+  }
+
+  function resetForAnotherRun() {
+    setPhase("form"); // keep the previous inputs so they can tweak & run again
   }
 
   return (
@@ -529,7 +617,7 @@ export default function AddSourcesModal({ open, onClose, onComplete }) {
                 {phase === "running" && (
                   <div>
                     <div className="mb-3 text-sm text-gray-600 dark:text-gray-300">
-                        Running {progress.length} search{progress.length !== 1 ? "es" : ""}…
+                      Running {progress.length} search{progress.length !== 1 ? "es" : ""}…
                     </div>
 
                     <div className="mb-4 h-2 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
@@ -571,20 +659,87 @@ export default function AddSourcesModal({ open, onClose, onComplete }) {
 
                 {phase === "done" && (
                   <div className="text-sm">
-                    <div className="rounded-lg border border-green-200 bg-green-50 p-4 text-green-800 dark:border-green-900/50 dark:bg-green-900/20 dark:text-green-200">
-                      <div className="font-medium">All searches complete.</div>
-                      <div className="mt-1">
-                        Fetched {summary.found}, added {summary.added}, skipped {summary.skipped} across {summary.passes} pass
-                        {summary.passes === 1 ? "" : "es"}.
+                    {/* Header success */}
+                    <div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-900 shadow-sm dark:border-emerald-900/40 dark:bg-emerald-900/20 dark:text-emerald-100">
+                      <motion.div
+                        initial={{ scale: 0.8, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        transition={{ type: "spring", stiffness: 240, damping: 16 }}
+                        className="grid h-8 w-8 place-items-center rounded-full border border-emerald-300 bg-white text-emerald-600 shadow-sm dark:border-emerald-700 dark:bg-emerald-950/50"
+                        aria-hidden
+                      >
+                        ✓
+                      </motion.div>
+                      <div>
+                        <div className="font-semibold">All searches complete</div>
+                        <div className="mt-0.5 text-[13px] opacity-90">
+                          Fetched <span className="font-medium">{summary.found}</span>, added{" "}
+                          <span className="font-medium">{summary.added}</span>, skipped{" "}
+                          <span className="font-medium">{summary.skipped}</span> across{" "}
+                          <span className="font-medium">{summary.passes}</span> pass
+                          {summary.passes === 1 ? "" : "es"}.
+                        </div>
                       </div>
                     </div>
+
+                    {/* Stats */}
+                    <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                      <Stat label="Fetched" value={summary.found} />
+                      <Stat label="Added" value={summary.added} />
+                      <Stat label="Skipped" value={summary.skipped} />
+                      <Stat label="Passes" value={summary.passes} />
+                    </div>
+
+                    {/* Added by source */}
+                    {summary.bySource && (
+                      <div className="mt-4">
+                        <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Added by source</div>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          <SourcePill label="PubMed" tone="pubmed" delta={summary.bySource.pubmed || 0} />
+                          <SourcePill label="Local" tone="local" delta={summary.bySource.local || 0} />
+                          <SourcePill label="Other" tone="other" delta={summary.bySource.other || 0} />
+                          <Chip>Total +{summary.bySource.total || 0}</Chip>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Run settings */}
                     <div className="mt-4 flex flex-wrap gap-2">
                       <Chip>Lang: {lang}</Chip>
                       {minDate ? <Chip>Min date: {minDate}</Chip> : null}
                       {selectedTypes.map((t) => (
                         <Chip key={t}>{t}</Chip>
                       ))}
+                      <Chip>Target conf: {targetConfidence}</Chip>
+                      <Chip>Per-pass: {perPassRetmax}</Chip>
+                      <Chip>Top-K: {topK}</Chip>
                     </div>
+
+                    {/* Per-term mini report */}
+                    {!!progress?.length && (
+                      <div className="mt-4">
+                        <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Per-term results</div>
+                        <div className="mt-2 space-y-2">
+                          {progress.map((p, i) => (
+                            <div
+                              key={p.term + i}
+                              className="flex items-center justify-between rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-800/40"
+                            >
+                              <div className="min-w-0">
+                                <div className="truncate font-medium text-gray-900 dark:text-gray-100">{p.term}</div>
+                                <div className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                                  {p.found != null ? `Found ${p.found}` : p.status}
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Chip>Added {p.added ?? 0}</Chip>
+                                <Chip>Skipped {p.skipped ?? 0}</Chip>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -612,6 +767,7 @@ export default function AddSourcesModal({ open, onClose, onComplete }) {
                     </button>
                   </>
                 )}
+
                 {phase === "running" && (
                   <>
                     <button
@@ -622,8 +778,24 @@ export default function AddSourcesModal({ open, onClose, onComplete }) {
                     </button>
                   </>
                 )}
+
                 {phase === "done" && (
                   <>
+                    <button
+                      onClick={resetForAnotherRun}
+                      className="rounded-full border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                    >
+                      + Add more
+                    </button>
+
+                    <button
+                      onClick={copyRunLog}
+                      className="rounded-full border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                      title="Copy a compact JSON run log to clipboard"
+                    >
+                      {copying ? "Copied ✓" : "Copy run log"}
+                    </button>
+
                     <button
                       onClick={handleCloseAndRefresh}
                       className="rounded-full bg-gray-900 px-4 py-1.5 text-sm text-white hover:opacity-95 dark:bg-gray-100 dark:text-gray-900"
