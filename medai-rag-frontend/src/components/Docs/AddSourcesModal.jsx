@@ -72,6 +72,48 @@ function Spinner() {
   );
 }
 
+function InfoIcon({ className = "" }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      className={`h-4 w-4 text-white ${className}`}
+    >
+      <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="2" />
+      <path
+        d="M9.5 9a2.5 2.5 0 1 1 4.1 1.9c-.7.5-1.1.9-1.1 1.6v.25"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+      />
+      <circle cx="12" cy="17.2" r="1" fill="currentColor" />
+    </svg>
+  );
+}
+
+function Tooltip({ text, children }) {
+  return (
+    <span className="relative inline-flex items-center group" tabIndex={0}>
+      {children}
+      <span
+        role="tooltip"
+        className="
+          pointer-events-none absolute left-1/2 top-full z-[100] mt-2 -translate-x-1/2
+          whitespace-nowrap rounded-md border border-gray-200 bg-white px-2 py-1
+          text-xs text-gray-700 opacity-0 shadow-lg transition-opacity duration-150
+          group-hover:opacity-100 group-focus:opacity-100
+          dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100
+        "
+      >
+        {text}
+      </span>
+    </span>
+  );
+}
+
+
 export default function AddSourcesModal({ open, onClose, onComplete }) {
   const { user } = useAuth();
   const prefersReducedMotion = useReducedMotion();
@@ -383,7 +425,12 @@ export default function AddSourcesModal({ open, onClose, onComplete }) {
                           >
                             <div>
                               <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">
-                                Target confidence (0–1)
+                                <div className="flex items-center justify-between">
+                                  <span>Target confidence (0-1)</span>
+                                  <Tooltip text="Minimum confidence to keep a source. Higher = stricter, fewer.">
+                                    <InfoIcon className="ml-2" />
+                                  </Tooltip>
+                                </div>
                               </label>
                               <input
                                 type="number"
@@ -401,7 +448,12 @@ export default function AddSourcesModal({ open, onClose, onComplete }) {
                             </div>
                             <div>
                               <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">
-                                Max passes
+                                <div className="flex items-center justify-between">
+                                  <span>Max passes</span>
+                                  <Tooltip text="How many search/refinement rounds per keyword.">
+                                    <InfoIcon className="ml-2" />
+                                  </Tooltip>
+                                </div>
                               </label>
                               <input
                                 type="number"
@@ -414,7 +466,12 @@ export default function AddSourcesModal({ open, onClose, onComplete }) {
                             </div>
                             <div>
                               <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">
-                                Per-pass retmax
+                                <div className="flex items-center justify-between">
+                                  <span>Per-pass retmax</span>
+                                  <Tooltip text="Max PubMed results fetched per pass.">
+                                    <InfoIcon className="ml-2" />
+                                  </Tooltip>
+                                </div>
                               </label>
                               <input
                                 type="number"
@@ -427,7 +484,12 @@ export default function AddSourcesModal({ open, onClose, onComplete }) {
                             </div>
                             <div>
                               <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">
-                                Top-K
+                                <div className="flex items-center justify-between">
+                                  <span>Top-K</span>
+                                  <Tooltip text="Number of top-scoring items kept for answering.">
+                                    <InfoIcon className="ml-2" />
+                                  </Tooltip>
+                                </div>
                               </label>
                               <input
                                 type="number"
@@ -435,19 +497,6 @@ export default function AddSourcesModal({ open, onClose, onComplete }) {
                                 max="20"
                                 value={topK}
                                 onChange={(e) => setTopK(Number(e.target.value || 1))}
-                                className="mt-1 w-full rounded-lg border border-gray-300 bg-white/80 p-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">
-                                Concurrency (1–5)
-                              </label>
-                              <input
-                                type="number"
-                                min="1"
-                                max="5"
-                                value={concurrency}
-                                onChange={(e) => setConcurrency(Number(e.target.value || 1))}
                                 className="mt-1 w-full rounded-lg border border-gray-300 bg-white/80 p-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
                               />
                             </div>
