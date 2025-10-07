@@ -509,7 +509,15 @@ export default function Chat() {
           </div>
           <div className='rounded-2xl border border-gray-200 bg-white p-3 shadow-card no-print'>
             <div className='flex gap-2'>
-              <button onClick={exportToPDF} className='flex-1 px-4 py-2 rounded-xl border border-gray-300 bg-white text-sm'>Export PDF</button>
+              <button
+                onClick={() =>
+                  exportToPDF({
+                    chatId,
+                    messages, // already in component state
+                    title: messages.find(m => m.role === 'user')?.content?.slice(0, 100) || 'Untitled Chat'
+                  })
+                }
+                className='flex-1 px-4 py-2 rounded-xl border border-gray-300 bg-white text-sm'> Export PDF </button>
               <button onClick={onClearClick} className='flex-1 px-4 py-2 rounded-xl bg-gray-900 text-white text-sm'>Clear</button>
             </div>
           </div>

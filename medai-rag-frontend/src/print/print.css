@@ -1,0 +1,109 @@
+/* src/print/print.css */
+
+/* On-screen: keep the print root hidden */
+#print-root { display: none; }
+
+/* Everything below is print-only */
+@media print {
+
+  /* Show only the print root when printing */
+  body > *:not(#print-root[data-print="1"]) { display: none !important; }
+  #print-root { display: block !important; }
+
+  @page {
+    size: letter;
+    margin: 0.6in 0.7in;
+  }
+
+  /* Scope ALL print styles under the print root */
+  #print-root .print-wrap {
+    font: 12px/1.5 system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif;
+    color: #111;
+    background: #fff;
+  }
+
+  /* Link visibility + wrap for PDF (scoped to print area only) */
+  #print-root .print-wrap a {
+    color: #000;
+    text-decoration: underline;
+    word-break: break-all;
+  }
+
+  /* ---- Cover ---- */
+  #print-root .cover { page-break-after: always; }
+  #print-root .cover .app {
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    font-weight: 600;
+    opacity: .8;
+  }
+  #print-root .cover .title { font-size: 22px; margin: 8px 0 6px; }
+  #print-root .cover .meta { font-size: 11px; color: #333; }
+  #print-root .cover .meta code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  }
+  #print-root .cover .disclaimer { margin-top: 12px; font-size: 11px; color: #444; }
+
+  /* ---- Running header (MVP: appears once) ---- */
+  #print-root .running-header {
+    font-size: 11px;
+    color: #444;
+    margin-bottom: 6px;
+  }
+
+  /* ---- Thread ---- */
+  #print-root .thread { counter-reset: msg; }
+  #print-root .msg {
+    padding: 10px 0;
+    border-top: 1px solid #e5e7eb;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  #print-root .msg:first-child { border-top: 0; }
+
+  #print-root .msg .msg-head {
+    display: flex;
+    gap: 8px;
+    align-items: baseline;
+    font-size: 11px;
+    color: #555;
+  }
+  #print-root .msg .who { font-weight: 600; }
+  #print-root .msg .conf,
+  #print-root .msg .tag { margin-left: auto; }
+  #print-root .msg .tag { font-weight: 600; }
+  #print-root .msg.user .who { color: #0f766e; }      /* teal-ish */
+  #print-root .msg.assistant .who { color: #1d4ed8; } /* blue-ish */
+
+  #print-root .msg .msg-body {
+    margin-top: 4px;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    color: #111;
+  }
+
+  #print-root .msg-citations { margin-top: 6px; }
+  #print-root .msg-citations .label {
+    font-weight: 600;
+    font-size: 11px;
+    margin-bottom: 2px;
+  }
+
+  /* ---- References ---- */
+  #print-root .references { page-break-before: always; }
+  #print-root .references h2 { font-size: 16px; margin-bottom: 6px; }
+  #print-root .references ol { padding-left: 18px; }
+
+  /* Simple footer note (MVP) */
+  #print-root .footer-note {
+    margin-top: 16px;
+    font-size: 10.5px;
+    color: #444;
+  }
+
+  /* Keep print colors */
+  #print-root * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
