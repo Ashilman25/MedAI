@@ -38,6 +38,7 @@ export default function DocsPage() {
   const [showAdd, setShowAdd] = useState(false); 
   const prefersReducedMotion = useReducedMotion();
 
+
   async function refreshDocs() {
     const myReqId = ++reqIdRef.current;
 
@@ -65,6 +66,18 @@ export default function DocsPage() {
     }
 
   }, [authLoading, user?.uid]);
+
+  useEffect(() => {
+    if (showAdd) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [showAdd]);
 
   // Filter
   const filtered = useMemo(() => {
