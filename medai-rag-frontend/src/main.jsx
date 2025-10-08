@@ -10,6 +10,7 @@ import DocsPage from './pages/DocsPage'
 import { AuthProvider } from './context/AuthContext'
 import SignIn from './pages/SignIn'
 import SignUp from './pages/SignUp'
+import ForgotPassword from './pages/ForgotPassword'
 import ProtectedRoute from './components/Auth/ProtectedRoute'
 
 createRoot(document.getElementById('root')).render(
@@ -31,6 +32,8 @@ createRoot(document.getElementById('root')).render(
             />
             <Route path='signin' element={<SignIn />} />
             <Route path='signup' element={<SignUp />} />
+            <Route path='forgot-password' element={<ForgotPassword />} />
+
             <Route path='*' element={<Navigate to='/' />} />
           </Route>
         </Routes>

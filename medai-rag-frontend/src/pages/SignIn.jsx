@@ -44,16 +44,16 @@ export default function SignIn() {
     }
   }
 
-  async function handleForgot() {
-    setErr(""); setNotice("");
-    if (!email) { setErr("Enter your email first to receive a reset link."); return; }
-    try {
-      await resetPassword(email);
-      setNotice("Password reset email sent. Check your inbox.");
-    } catch (e) {
-      setErr(e.message || "Could not send reset email");
-    }
-  }
+  // async function handleForgot() {
+  //   setErr(""); setNotice("");
+  //   if (!email) { setErr("Enter your email first to receive a reset link."); return; }
+  //   try {
+  //     await resetPassword(email);
+  //     setNotice("Password reset email sent. Check your inbox.");
+  //   } catch (e) {
+  //     setErr(e.message || "Could not send reset email");
+  //   }
+  // }
 
   return (
     <div className="flex min-h-[70vh] items-center justify-center px-4">
@@ -94,9 +94,13 @@ export default function SignIn() {
         </form>
 
         <div className="mt-3 flex items-center justify-between text-xs">
-          <button onClick={handleForgot} className="text-blue-600 hover:underline">
+          <Link
+            to="/forgot-password"
+            state={{ email }}
+            className="text-blue-600 hover:underline"
+          >
             Forgot password?
-          </button>
+          </Link>
           <Link to="/signup" className="text-gray-600 hover:underline">
             Create account
           </Link>
