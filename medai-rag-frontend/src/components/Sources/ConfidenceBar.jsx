@@ -1,17 +1,39 @@
-import React from 'react'
-export default function ConfidenceBar({ value }) {
-  const pct = Math.round((value ?? 0) * 100)
-  const low = (value ?? 0) < 0.6
+// src/components/Sources/ConfidenceBar.jsx
+import React from "react";
+
+export default function ConfidenceBar({
+  value = 0,
+  labelSuffix = null, // ✅ new: anything rendered next to the "Confidence" label
+}) {
+  const pct = Math.round((Number(value) || 0) * 100);
+  const color =
+    pct >= 70 ? "text-emerald-600"
+    : pct >= 40 ? "text-amber-600"
+    : "text-red-600";
+
   return (
-    <div className='space-y-2'>
-      <div className='flex items-center justify-between text-sm'>
-        <span className='font-medium'>Confidence</span>
-        <span className={low ? 'text-orange-600' : 'text-gray-600'}>{pct}%</span>
+    <div>
+      {/* Header row */}
+      <div className="mb-1 flex items-center justify-between">
+        <div className="flex items-center gap-1.5">
+          <span className="text-sm font-semibold text-gray-900">Confidence</span>
+          {labelSuffix /* ✅ appears inline with the title */}
+        </div>
+        <span className={`text-sm ${color}`}>{pct}%</span>
       </div>
-      <div className='h-2 bg-gray-200 rounded-full overflow-hidden'>
-        <div className={`h-full ${low ? 'bg-medical-warn' : 'bg-medical-green'}`} style={{ width: `${pct}%` }} />
+
+      {/* Bar */}
+      <div className="h-2 w-full overflow-hidden rounded-full bg-gray-100">
+        <div
+          className="h-full rounded-full bg-gray-400 transition-all"
+          style={{ width: `${pct}%` }}
+        />
       </div>
-      {low && <p className='text-xs text-orange-700'>Some details may be uncertain. Verify in the sources below.</p>}
+
+      {/* Hint */}
+      <div className="mt-2 text-xs text-red-700">
+        Some details may be uncertain. Verify in the sources below.
+      </div>
     </div>
-  )
+  );
 }

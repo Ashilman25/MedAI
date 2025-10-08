@@ -10,6 +10,68 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '../context/AuthContext'
 import * as ChatStore from '../store/chatStore'
 
+function InfoIcon({ className = "" }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      className={`h-4 w-4 text-gray-500 ${className}`}
+    >
+      <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="2" />
+      <path
+        d="M9.5 9a2.5 2.5 0 1 1 4.1 1.9c-.7.5-1.1.9-1.1 1.6v.25"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+      />
+      <circle cx="12" cy="17.2" r="1" fill="currentColor" />
+    </svg>
+  );
+}
+
+function Tooltip({
+  text,
+  children,
+  width,              
+  height,             
+  maxWidth = 250,
+  maxHeight = 150,
+  panelClassName = ""
+}) {
+  const toPx = v => (typeof v === "number" ? `${v}px` : v);
+
+  return (
+    <span className="relative inline-flex items-center group" tabIndex={0}>
+      {children}
+      <span
+        role="tooltip"
+        className={`
+          pointer-events-none absolute right-0 top-full z-[100] mt-2
+          rounded-md border border-gray-200 bg-white px-2 py-1
+          text-[11px] leading-snug text-gray-700 opacity-0 shadow-lg transition-opacity duration-150
+          group-hover:opacity-100 group-focus:opacity-100
+          dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100
+          ${panelClassName}
+        `}
+        style={{
+          width:  width  ? toPx(width)  : undefined,
+          height: height ? toPx(height) : undefined,
+          maxWidth:  width  ? undefined : toPx(maxWidth),
+          maxHeight: height ? undefined : toPx(maxHeight),
+          overflow: "auto",
+          whiteSpace: "normal",
+          wordBreak: "break-word"
+        }}
+      >
+        {text}
+      </span>
+    </span>
+  );
+}
+
+
 export default function Chat() {
   const [messages, setMessages] = useState([])
   const [chatId, setChatId] = useState(null)
@@ -503,10 +565,25 @@ export default function Chat() {
             <div className='text-sm font-semibold mb-3'>Sources</div>
             <SourceList items={lastAnswer?.citations ?? []} />
           </div>
-          <div className='rounded-2xl border border-gray-200 bg-white p-4 shadow-card'>
-            <ConfidenceBar value={lastAnswer?.confidence ?? 0} />
-            <div className='text-xs text-gray-600 mt-2'>This answer is grounded in retrieved sources.</div>
+
+                    
+          <div className="rounded-xl border border-gray-200 bg-white p-2 shadow-card">
+            <ConfidenceBar
+              value={lastAnswer?.confidence ?? 0}
+              labelSuffix={
+                <Tooltip
+                  text="How well the answer is supported by retrieved medical sources. Computed from claim-level evidence checks, retrieval quality, and consistency; low scores can trigger “Scan Now”."
+                  width={200}  
+                  height={105} 
+                >
+                  <InfoIcon />
+                </Tooltip>
+              }
+            />
           </div>
+
+
+
           <div className='rounded-2xl border border-gray-200 bg-white p-3 shadow-card no-print'>
             <div className='flex gap-2'>
               <button
