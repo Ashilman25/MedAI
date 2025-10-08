@@ -33,7 +33,7 @@ export async function ingest(file, uid) {
 
 export async function listDocuments(uid) {
   const API_BASE = import.meta.env.VITE_API_BASE_URL || "";
-  const q = uid ? `?uid=${encodeURIComponent(uid)}` : "?uid="; // safe default: empty list server-side
+  const q = uid ? `?uid=${encodeURIComponent(uid)}` : "?uid="; 
   const r = await fetch(`${API_BASE}/documents${q}`, { method: "GET" });
   if (!r.ok) throw new Error(`API error: ${r.status}`);
   return r.json();
