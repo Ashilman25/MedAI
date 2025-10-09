@@ -1,6 +1,7 @@
 import os
 from fastapi import FastAPI, UploadFile, File, Query
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 from typing import List, Optional
 from .config import get_settings
 from .models import AskRequest, AskResponse, IngestResponse
@@ -10,6 +11,7 @@ from app.rag import get_embedder, provider_signature
 from app.vectorstore.faiss_store import FaissStore
 from .models import ExpandRequest, ExpandResponse
 from .ingest import fetch_pubmed_docs, ingest_text_items
+from .logging_config import warn
 
 
 s = get_settings()
@@ -46,6 +48,29 @@ def _expand_synonyms(q: str) -> str:
         if k in q_low and v not in q_low:
             extra.append(v)
     return q if not extra else f"{q} {' '.join(extra)}"
+
+def _normalize_terms(terms: List[str]) -> List[str]:
+    seen, out = set(), []
+    for t in terms or []:
+        tt = (t or "").strip()
+        k = tt.lower()
+        if tt and k not in seen:
+            seen.add(k); out.append(tt)
+    return out
+
+def _query_from_terms(terms: List[str]) -> str:
+    quoted = [f'"{t}"' if " " in t else t for t in terms]
+    return " OR ".join(quoted)
+
+_INTENT_EXPANSIONS = {
+    "dosing_safety": ["adverse effects", "side effects", "complications"],
+    "diagnosis": ["diagnosis", "screening", "criteria"],
+    "therapy": ["therapy", "management", "treatment"],
+    "prognosis": ["prognosis", "outcomes", "mortality"],
+    "epidemiology": ["incidence", "prevalence", "epidemiology"],
+    "general": [],
+}
+
 
 
 def _default_types_for_pass(pass_idx: int) -> list[str]:
@@ -125,6 +150,7 @@ def list_docs(uid: Optional[str] = Query(default=None)):
 def expand_sources(req: ExpandRequest):
     """
     Wide/iterative expansion with PubMed, ingest, re-answer.
+    Supports either a raw query (legacy) or structured query_terms + intent.
     """
     # env defaults
     env_types = [t.strip() for t in os.getenv("PUBMED_FILTER_TYPES", "Guideline,Review").split(",") if t.strip()]
@@ -134,16 +160,25 @@ def expand_sources(req: ExpandRequest):
     max_passes = max(1, int(req.max_passes))
     per_pass_retmax = max(10, int(req.per_pass_retmax))
 
+    # Build base query
+    used_terms = False
+    if req.query_terms and len(req.query_terms) > 0:
+        terms = _normalize_terms(req.query_terms)
+        base_query = _query_from_terms(terms)
+        used_terms = True
+    else:
+        base_query = _expand_synonyms(req.query or "")
 
-
-    # base query (with small synonym boost)
-    base_query = _expand_synonyms(req.query)
+    # Intent (optional)
+    intent = (req.intent or "general").strip().lower()
+    if intent not in _INTENT_EXPANSIONS:
+        intent = "general"
 
     total_found = total_added = total_skipped = 0
     last_answer = None
 
     for p in range(1, max_passes + 1):
-        # pass-specific shaping
+        # pass-specific types
         if req.types and p == 1:
             types = req.types
         else:
@@ -157,12 +192,20 @@ def expand_sources(req: ExpandRequest):
         else:
             mindate = min(req.fallback_mindate, (base_mindate or req.fallback_mindate))
 
-        # widen query slightly on later passes
+        # build pass query
         q = base_query
-        if p == 2 and all(w not in q.lower() for w in ["therapy", "management", "treatment"]):
-            q = f"{q} therapy management"
-        if p >= 3 and "diagnosis" not in q.lower():
-            q = f"{q} diagnosis"
+        if p == 2:
+            # add 1–2 intent-specific words if not already present
+            extras = [w for w in _INTENT_EXPANSIONS.get(intent, []) if w.lower() not in q.lower()]
+            if extras:
+                q = f"({q}) OR ({' OR '.join(extras)})"
+        if p >= 3:
+            # gentle broadening: ensure at least one generic category token present
+            cat = _INTENT_EXPANSIONS.get(intent, [])
+            if cat:
+                token = cat[0]
+                if token.lower() not in q.lower():
+                    q = f"({q}) OR {token}"
 
         retmax = per_pass_retmax * (1 if p == 1 else 2 if p == 2 else 3)
 
@@ -186,17 +229,30 @@ def expand_sources(req: ExpandRequest):
         total_skipped += skipped
 
         # 3) re-answer
-        last = answer(req.query, req.top_k)
+        last = answer(req.query or " ".join(req.query_terms or []), req.top_k)
         last_answer = last
 
         # early exit
         if (last["confidence"] >= target_conf) or (found == 0 and added == 0) or not req.wide:
             break
 
-
-
     if not last_answer:
-        last_answer = answer(req.query, req.top_k)
+        last_answer = answer(req.query or " ".join(req.query_terms or []), req.top_k)
+
+    # telemetry
+    try:
+        print({
+            "event": "expand_sources",
+            "used_terms": used_terms,
+            "intent": intent,
+            "found": total_found,
+            "added": total_added,
+            "skipped": total_skipped,
+            "passes": min(max_passes, p),
+            "conf": float(last_answer.get("confidence", 0.0)),
+        })
+    except Exception:
+        pass
 
     return ExpandResponse(
         answer=last_answer["answer"],
@@ -207,3 +263,22 @@ def expand_sources(req: ExpandRequest):
         skipped=total_skipped,
         passes=min(max_passes, p),
     )
+
+
+class SuggestTermsReq(BaseModel):
+    message: str
+
+class SuggestTermsResp(BaseModel):
+    terms: List[str]
+    intent: str
+    method: str  # "heuristic" | "llm"
+
+@app.post("/suggest-terms", response_model=SuggestTermsResp)
+def suggest_terms(req: SuggestTermsReq):
+    from .query_suggest import extract_terms_and_intent
+    terms, intent, method = extract_terms_and_intent(req.message)
+    try:
+        print({"event": "suggest_terms", "len_msg": len(req.message or ""), "terms": terms, "intent": intent, "method": method})
+    except Exception:
+        pass
+    return SuggestTermsResp(terms=terms, intent=intent, method=method)

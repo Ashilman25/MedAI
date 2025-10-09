@@ -59,7 +59,7 @@ async function fetchWithRetry(url, options, retries = 3) {
 
 export async function expandSources(query, options = {}) {
   const body = {
-    query,
+    query, 
     top_k: options.top_k ?? Number(import.meta.env.VITE_DEFAULT_TOP_K ?? 5),
     wide: options.wide ?? true,
     target_confidence:
@@ -76,11 +76,25 @@ export async function expandSources(query, options = {}) {
     owner_uid: options.owner_uid ?? null,
   };
 
+  if (options.query_terms?.length) body.query_terms = options.query_terms;
+  if (options.intent) body.intent = options.intent;
+
   const res = await fetchWithRetry(`${API_BASE}/expand-sources`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
     signal: options.signal,
   });
+  return res.json();
+}
+
+
+export async function suggestTerms(message) {
+  const res = await fetch(`${API_BASE}/suggest-terms`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message })
+  });
+  if (!res.ok) throw new Error(`API error: ${res.status}`);
   return res.json();
 }

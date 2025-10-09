@@ -4,7 +4,7 @@ import MessageBubble from '../components/Chat/MessageBubble'
 import SourceList from '../components/Sources/SourceList'
 import ConfidenceBar from '../components/Sources/ConfidenceBar'
 import HistoryPanel from '../components/Chat/HistoryPanel'
-import { ask, expandSources } from '../lib/api'
+import { ask, expandSources, suggestTerms } from '../lib/api'
 import { exportToPDF } from '../lib/export'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '../context/AuthContext'
@@ -83,6 +83,8 @@ export default function Chat() {
 
   const [lastQuery, setLastQuery] = useState('')
   const [expandPrompt, setExpandPrompt] = useState(false)
+  const [scanTerms, setScanTerms] = useState(null);
+  const SHOW_SCAN_TERMS = (import.meta.env.VITE_SHOW_SCAN_TERMS ?? 'true') === 'true'
 
   // scanning UX states
   const [scanning, setScanning] = useState(false)
@@ -305,11 +307,19 @@ export default function Chat() {
     setScanStats(null)
     setShowScanSummary(false)
     setScanStep(1)
+    setScanTerms(null)
+
+    let terms, intent
+    try {
+      const s = await suggestTerms(lastQuery)
+      terms = Array.isArray(s?.terms) ? s.terms : null
+      intent = s?.intent || null
+      if (terms?.length) setScanTerms(terms)
+    } catch (_) {
+      // silent fallback to legacy
+    }
 
     try {
-      const t1 = setTimeout(() => setScanStep(2), 600)
-      const t2 = setTimeout(() => setScanStep(3), 1200)
-
       const resp = await expandSources(lastQuery, {
         wide: true,
         target_confidence: Number(import.meta.env.VITE_CONFIDENCE_THRESHOLD ?? 0.62),
@@ -319,7 +329,8 @@ export default function Chat() {
         fallback_mindate: 2010,
         lang: 'en',
         types: ['Guideline','Practice Guideline','Systematic Review','Review'],
-        top_k: Number(import.meta.env.VITE_DEFAULT_TOP_K ?? 5)
+        top_k: Number(import.meta.env.VITE_DEFAULT_TOP_K ?? 5),
+        ...(terms?.length ? { query_terms: terms, intent } : {})
       })
 
       setScanStats({ found: resp.found, added: resp.added, skipped: resp.skipped })
@@ -333,9 +344,7 @@ export default function Chat() {
         setChatId(id)
       }
       if (id) {
-        ChatStore.appendMessage(id, aiMsg).catch(err => {
-          console.error('appendMessage (scan assistant) failed: ', err)
-        })
+        ChatStore.appendMessage(id, aiMsg).catch(err => console.error('appendMessage (scan assistant) failed: ', err))
       }
 
       setMessages(m => [...m, { ...aiMsg }])
@@ -347,21 +356,13 @@ export default function Chat() {
         setShowScanSummary(true)
         setTimeout(() => setShowScanSummary(false), 3000)
       }, 1200)
-
-      return () => { clearTimeout(t1); clearTimeout(t2) }
     } catch (e) {
       const errMsg = { role:'assistant', content:`Source expansion failed: ${e.message}`, createdAt: Date.now() }
       if (chatId) {
-        ChatStore.appendMessage(chatId, errMsg).catch(err => {
-          console.error('appendMessage (scan error) failed:', err)
-        })
+        ChatStore.appendMessage(chatId, errMsg).catch(err => console.error('appendMessage (scan error) failed:', err))
       }
-
       setMessages(m => [...m, errMsg])
-      setTimeout(() => {
-        setScanning(false)
-        setShowScanSummary(false)
-      }, 800)
+      setTimeout(() => { setScanning(false); setShowScanSummary(false) }, 800)
     }
   }
 
@@ -500,6 +501,12 @@ export default function Chat() {
                     <li className={scanStep >= 3 ? "opacity-100" : "opacity-60"}>3) Embedding into knowledge base…</li>
                     <li className={scanStep >= 4 ? "opacity-100" : "opacity-60"}>4) Re-evaluating your question…</li>
                   </ul>
+
+                  {SHOW_SCAN_TERMS && scanTerms?.length ? (
+                    <div className="mt-2 text-[11px] text-gray-500">
+                      Using terms: <span className="italic">{scanTerms.slice(0,5).join(', ')}</span>
+                    </div>
+                  ) : null}
 
                   <div className="mt-3">
                     <div className="h-2 w-full rounded bg-gray-100 overflow-hidden">
