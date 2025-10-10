@@ -303,6 +303,22 @@ export default function Chat() {
 
   async function onScanNow() {
     setExpandPrompt(false)
+
+    // Only allow scanning when signed in; otherwise it would add globally.
+    if (!user) {
+      setMessages(m => [
+        ...m,
+        {
+          role: 'assistant',
+          content:
+            'Please sign in to scan additional sources. Scans add sources to your private library (not global).',
+          createdAt: Date.now()
+        }
+      ])
+      return
+    }
+
+
     setScanning(true)
     setScanStats(null)
     setShowScanSummary(false)
@@ -330,6 +346,7 @@ export default function Chat() {
         lang: 'en',
         types: ['Guideline','Practice Guideline','Systematic Review','Review'],
         top_k: Number(import.meta.env.VITE_DEFAULT_TOP_K ?? 5),
+        owner_uid: user?.uid,
         ...(terms?.length ? { query_terms: terms, intent } : {})
       })
 
@@ -392,7 +409,7 @@ export default function Chat() {
     setChatId(null)
   }
 
-  // 👇 dynamic grid: keep right column pinned as the right sidebar
+  //  dynamic grid: keep right column pinned as the right sidebar
   const gridTemplate = user
     ? 'lg:grid-cols-[260px_minmax(0,1fr)_320px]'
     : 'lg:grid-cols-[minmax(0,1fr)_320px]'
@@ -465,8 +482,14 @@ export default function Chat() {
                         Scan additional trusted sources (PubMed, etc.) to improve it?
                       </div>
                       <div className="mt-3 flex flex-wrap gap-2">
-                        <button onClick={onScanNow} className="px-3 py-1.5 rounded-lg bg-blue-600 text-white text-sm hover:bg-blue-700 shadow-sm">
-                          Scan Now
+                        <button
+                          onClick={onScanNow}
+                          disabled={!user || scanning}
+                          className={`px-3 py-1.5 rounded-lg text-white text-sm shadow-sm ${
+                            !user ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
+                          }`}
+                        >
+                          {user ? 'Scan Now' : 'Sign in to scan'}
                         </button>
                         <button onClick={()=>setExpandPrompt(false)} className="px-3 py-1.5 rounded-lg border border-gray-300 text-gray-700 text-sm bg-white hover:bg-gray-50">
                           Dismiss
