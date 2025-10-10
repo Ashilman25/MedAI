@@ -98,3 +98,4 @@ export async function suggestTerms(message) {
   if (!res.ok) throw new Error(`API error: ${res.status}`);
   return res.json();
 }
+
