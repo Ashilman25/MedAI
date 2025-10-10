@@ -1,6 +1,7 @@
 # app/ingest.py
 import os, csv, argparse, json, time
 from typing import List, Dict, Any, Tuple, Optional
+import hashlib
 
 from .config import get_settings
 from .logging_config import info, warn
@@ -30,6 +31,9 @@ def read_file_text(path: str) -> str:
     return ""
 
 
+def _content_hash(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8", errors="ignore")).hexdigest()
+
 def ingest_paths(paths: List[str], owner_uid: Optional[str] = None) -> Dict[str, Any]:
     s = get_settings()
     embedder = get_embedder()
@@ -37,6 +41,25 @@ def ingest_paths(paths: List[str], owner_uid: Optional[str] = None) -> Dict[str,
 
     added = 0
     skipped = 0
+
+    
+    existing_hashes = set()
+    try:
+        for md in getattr(store, "_meta", []):
+            owners = md.get("owner_uids") or []
+            if isinstance(owners, str):
+                owners = [owners]
+            ch = md.get("content_hash")
+            if not ch:
+                continue
+            if owner_uid:
+                if owners and owner_uid in owners:
+                    existing_hashes.add(ch)
+            else:
+                if not owners:   # truly global
+                    existing_hashes.add(ch)
+    except Exception:
+        pass
 
     for p in paths:
         if not os.path.exists(p):
@@ -47,6 +70,13 @@ def ingest_paths(paths: List[str], owner_uid: Optional[str] = None) -> Dict[str,
         raw = read_file_text(p)
         txt = clean_text(raw)
         if not txt:
+            skipped += 1
+            continue
+
+
+        chash = _content_hash(txt)
+        if chash in existing_hashes:
+            # already ingested for this context; skip
             skipped += 1
             continue
 
@@ -81,6 +111,7 @@ def ingest_paths(paths: List[str], owner_uid: Optional[str] = None) -> Dict[str,
                 "snippet": c[:240],
                 "source_path": os.path.abspath(p),
                 "source": "local",
+                "content_hash": chash,
             }
             if owner_uid:
                 md["owner_uids"] = [owner_uid]
@@ -88,6 +119,7 @@ def ingest_paths(paths: List[str], owner_uid: Optional[str] = None) -> Dict[str,
 
         store.add(embs, metadatas)
         added += len(chunks)
+        existing_hashes.add(chash)
 
     info(
         f"Ingested (local): added={added}, skipped={skipped}, total={FaissStore(s.STORAGE_DIR, embedder.dim, provider_signature(embedder)).size()}"

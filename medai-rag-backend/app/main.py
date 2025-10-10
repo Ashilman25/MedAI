@@ -12,6 +12,7 @@ from app.vectorstore.faiss_store import FaissStore
 from .models import ExpandRequest, ExpandResponse
 from .ingest import fetch_pubmed_docs, ingest_text_items
 from .logging_config import warn
+from fastapi import HTTPException
 
 
 s = get_settings()
@@ -90,6 +91,10 @@ def ask(req: AskRequest): return AskResponse(**answer(req.query, req.top_k))
 
 @app.post("/ingest", response_model=IngestResponse)
 async def ingest(files: List[UploadFile] = File(...), uid: Optional[str] = Query(default=None)):
+    
+    if not uid:
+        raise HTTPException(status_code=401, detail="Sign-in required")
+    
     upload_dir = os.path.join(s.STORAGE_DIR, "_uploads"); os.makedirs(upload_dir, exist_ok=True)
     paths = []
     for f in files:
