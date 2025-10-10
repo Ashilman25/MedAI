@@ -100,6 +100,19 @@
 # python -m app.ingest --pubmed "omega 3 fatty acids supplementation review" --retmax 200 --mindate 2015
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
 # python -m app.ingest --pubmed "autism spectrum disorder guideline" --types "Guideline,Practice Guideline,Review,Systematic Review" --retmax 150 --mindate 2015 --lang English
 # python -m app.ingest --pubmed "ADHD adult guideline" --types "Guideline,Review,Systematic Review" --retmax 150 --mindate 2015 --lang English
 # python -m app.ingest --pubmed "intellectual disability guideline" --types "Guideline,Practice Guideline,Review" --retmax 120 --mindate 2015 --lang English

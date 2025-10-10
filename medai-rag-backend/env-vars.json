@@ -1,0 +1,25 @@
+{
+  "HOST": "0.0.0.0",
+  "STORAGE_DIR": "/var/lib/medai",
+
+  "EMBEDDING_PROVIDER": "openai",
+  "LOCAL_EMBEDDING_MODEL": "all-MiniLM-L6-v2",
+  "OPENAI_EMBEDDING_MODEL": "text-embedding-3-large",
+  "OPENAI_MODEL": "gpt-4o-mini",
+  "MOCK_COMPLETIONS": "false",
+
+  "PUBMED_EMAIL": "Andrew.Shilman@gmail.com",
+  "PUBMED_MAX_RESULTS": "50",
+  "PUBMED_MINDATE": "2015",
+  "PUBMED_LANG": "English",
+  "PUBMED_FILTER_TYPES": "Guideline,Practice Guideline,Review,Systematic Review",
+
+  "SCORER_ENABLED": "true",
+  "SCORER_MODEL": "gpt-4o-mini",
+
+  "SUGGEST_TERMS_MAX": "8",
+  "SUGGEST_TERMS_USE_LLM": "true",
+
+  "CORS_ORIGINS": "https://medai-6695d.web.app,https://medai-6695d.firebaseapp.com"
+  
+}

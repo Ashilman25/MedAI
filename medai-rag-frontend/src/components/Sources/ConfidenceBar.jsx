@@ -3,7 +3,7 @@ import React from "react";
 
 export default function ConfidenceBar({
   value = 0,
-  labelSuffix = null, // ✅ new: anything rendered next to the "Confidence" label
+  labelSuffix = null, 
 }) {
   const pct = Math.round((Number(value) || 0) * 100);
   const color =
@@ -17,7 +17,7 @@ export default function ConfidenceBar({
       <div className="mb-1 flex items-center justify-between">
         <div className="flex items-center gap-1.5">
           <span className="text-sm font-semibold text-gray-900">Confidence</span>
-          {labelSuffix /* ✅ appears inline with the title */}
+          {labelSuffix}
         </div>
         <span className={`text-sm ${color}`}>{pct}%</span>
       </div>

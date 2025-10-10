@@ -1,0 +1,112 @@
+alcohol use disorder treatment guideline||2015
+nicotine replacement therapy review||2015
+cannabis health effects review||2015
+cocaine abuse treatment guideline||2015
+methamphetamine abuse review||2015
+psychedelic therapy review||2015
+LSD psilocybin clinical review||2015
+opioid overdose treatment guideline||2015
+naloxone distribution guideline||2015
+anabolic steroid abuse health effects review||2015
+testosterone therapy guideline||2015
+corticosteroid treatment guideline||2015
+glucocorticoid adverse effects review||2015
+creatine supplementation safety review||2015
+protein supplements health effects review||2015
+caffeine performance review||2015
+pre workout supplement review||2015
+dietary supplement safety guideline||2015
+herbal supplements efficacy review||2015
+ginseng health effects review||2015
+turmeric curcumin review||2015
+omega 3 fatty acids supplementation review||2015
+autism spectrum disorder guideline|"Guideline","Practice Guideline","Review","Systematic Review"|2015
+ADHD adult guideline|"Guideline","Review","Systematic Review"|2015
+intellectual disability guideline|"Guideline","Practice Guideline","Review"|2015
+learning disabilities educational interventions review|"Review","Systematic Review"|2015
+dyslexia intervention guideline|"Guideline","Review"|2015
+developmental disabilities guideline|"Guideline","Practice Guideline","Review"|2015
+spinal cord injury rehabilitation guideline|"Guideline","Practice Guideline","Review","Systematic Review"|2015
+cerebral palsy management guideline|"Guideline","Review","Systematic Review"|2015
+amputation prosthetics rehabilitation guideline|"Guideline","Review"|2015
+muscular dystrophy treatment guideline|"Guideline","Practice Guideline","Review"|2015
+chronic fatigue syndrome guideline|"Guideline","Review","Systematic Review"|2015
+fibromyalgia guideline|"Guideline","Review","Systematic Review"|2015
+epilepsy management guideline|"Guideline","Practice Guideline","Review"|2015
+multiple sclerosis guideline|"Guideline","Review","Systematic Review"|2015
+hearing loss rehabilitation guideline|"Guideline","Review","Systematic Review"|2015
+visual impairment management guideline|"Guideline","Review","Systematic Review"|2015
+assistive technology disability review|"Review","Systematic Review"|2015
+disability inclusion healthcare review|"Review","Systematic Review"|2015
+accessibility guideline disability|"Guideline","Review"|2015
+employment disability interventions review|"Review","Systematic Review"|2015
+anemia diagnosis guideline|"Guideline","Review","Systematic Review"|2016
+venous thromboembolism guideline adults|"Guideline","Practice Guideline","Review"|2016
+hematologic malignancies guideline|"Guideline","Review","Systematic Review"|2016
+leukemia treatment guideline|"Guideline","Review","Systematic Review"|2016
+lymphoma management guideline|"Guideline","Review","Systematic Review"|2016
+breast cancer screening guideline|"Guideline","Practice Guideline","Review"|2016
+prostate cancer screening guideline|"Guideline","Review","Systematic Review"|2016
+colorectal cancer screening guideline|"Guideline","Practice Guideline","Review"|2016
+lung cancer screening guideline|"Guideline","Practice Guideline","Review"|2016
+HIV treatment guideline adults|"Guideline","Practice Guideline","Review","Systematic Review"|2016
+tuberculosis management guideline|"Guideline","Practice Guideline","Review"|2016
+malaria treatment guideline|"Guideline","Review","Systematic Review"|2016
+COVID-19 management guideline|"Guideline","Practice Guideline","Review","Systematic Review"|2020
+Ebola outbreak management review|"Review","Systematic Review"|2015
+vaccination schedule guideline adults children|"Guideline","Practice Guideline","Review"|2015
+bipolar disorder treatment guideline|"Guideline","Review","Systematic Review"|2016
+schizophrenia management guideline|"Guideline","Practice Guideline","Review"|2016
+post traumatic stress disorder guideline|"Guideline","Review","Systematic Review"|2016
+eating disorder treatment guideline|"Guideline","Review","Systematic Review"|2015
+sleep disorders insomnia guideline|"Guideline","Review","Systematic Review"|2015
+autism adult management review|"Review","Systematic Review"|2015
+contraception guideline|"Guideline","Practice Guideline","Review"|2016
+menopause hormone therapy guideline|"Guideline","Review","Systematic Review"|2016
+infertility evaluation guideline|"Guideline","Review","Systematic Review"|2016
+polycystic ovary syndrome guideline|"Guideline","Review","Systematic Review"|2016
+endometriosis management guideline|"Guideline","Review","Systematic Review"|2016
+gynecologic oncology guideline|"Guideline","Review","Systematic Review"|2016
+neonatal sepsis guideline|"Guideline","Practice Guideline","Review"|2016
+pediatric vaccination schedule guideline|"Guideline","Review"|2016
+pediatric obesity management guideline|"Guideline","Review","Systematic Review"|2016
+pediatric pain management guideline|"Guideline","Review"|2015
+dental caries prevention guideline|"Guideline","Review","Systematic Review"|2015
+periodontal disease management guideline|"Guideline","Review"|2015
+oral cancer screening guideline|"Guideline","Review"|2015
+osteoarthritis management guideline|"Guideline","Review","Systematic Review"|2016
+rheumatoid arthritis guideline|"Guideline","Practice Guideline","Review"|2016
+gout management guideline|"Guideline","Review","Systematic Review"|2016
+osteosarcoma treatment review|"Review","Systematic Review"|2016
+anaphylaxis management guideline|"Guideline","Review","Systematic Review"|2016
+food allergy guideline|"Guideline","Review","Systematic Review"|2016
+immunodeficiency management guideline|"Guideline","Review"|2016
+falls prevention guideline elderly|"Guideline","Review","Systematic Review"|2016
+dementia management guideline|"Guideline","Practice Guideline","Review"|2016
+delirium management guideline hospital|"Guideline","Review","Systematic Review"|2016
+mass casualty triage guideline|"Guideline","Review","Systematic Review"|2016
+acute pain management emergency department guideline|"Guideline","Review"|2016
+perioperative antibiotic prophylaxis guideline|"Guideline","Review","Systematic Review"|2016
+perioperative cardiovascular evaluation guideline|"Guideline","Review","Systematic Review"|2016
+laboratory test interpretation guideline|"Guideline","Review"|2015
+biomarker validation review|"Review","Systematic Review"|2016
+point of care testing accuracy review|"Review","Systematic Review"|2015
+benign prostatic hyperplasia guideline|"Guideline","Review","Systematic Review"|2016
+erectile dysfunction guideline|"Guideline","Review","Systematic Review"|2016
+urinary incontinence guideline adults|"Guideline","Review","Systematic Review"|2016
+acne treatment guideline|"Guideline","Review","Systematic Review"|2016
+psoriasis management guideline|"Guideline","Review","Systematic Review"|2016
+atopic dermatitis guideline|"Guideline","Review","Systematic Review"|2016
+skin cancer prevention guideline|"Guideline","Review"|2016
+otitis media guideline|"Guideline","Review"|2015
+sinusitis management guideline|"Guideline","Review"|2015
+glaucoma treatment guideline|"Guideline","Review","Systematic Review"|2015
+diabetic retinopathy screening guideline|"Guideline","Review","Systematic Review"|2015
+Parkinson disease management guideline|"Guideline","Review","Systematic Review"|2015
+dementia Alzheimer disease guideline|"Guideline","Review","Systematic Review"|2015
+neuropathic pain treatment guideline|"Guideline","Review","Systematic Review"|2015
+obesity prevention policy review|"Review","Systematic Review"|2015
+climate change health effects review|"Review","Systematic Review"|2016
+air pollution cardiovascular effects review|"Review","Systematic Review"|2016
+health disparities guideline|"Guideline","Review"|2016
+social determinants of health interventions review|"Review","Systematic Review"|2016

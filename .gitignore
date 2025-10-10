@@ -12,3 +12,26 @@ dist/
 
 # Mac
 .DS_Store
+
+# Cloud + Deployment
+# Prevent pushing GCP or Firebase config files
+service-account.json
+firebase-service-account.json
+*.key.json
+*.pem
+
+# Local Google auth token caches
+.gcloud/
+.gcp/
+.gcloudignore
+gcloud.log
+
+# Firebase cache & credentials
+.firebase/
+.firebaserc   
+firebase-debug.log*
+firebase-debug.*.log*
+
+# Build artifacts
+build/
+coverage/
