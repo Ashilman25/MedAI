@@ -61,7 +61,7 @@ function GuestPreview() {
               title="Start chatting — try guest mode!"
               className="mt-6 rounded-xl border border-gray-200 bg-gray-50 px-4 py-2 text-sm text-gray-400"
             >
-              Message MedAI (preview)
+              Message Med-Pal AI (preview)
             </div>
             <div className="text-xs text-gray-500 mt-1 animate-pulse">
               💬 Sign in to save your medical Q&A sessions.
@@ -175,7 +175,7 @@ function UserPreview() {
 
             {/* Disabled input hint for parity with guest */}
             <div className="mt-6 rounded-xl border border-gray-200 bg-gray-50 px-4 py-2 text-sm text-gray-400">
-              Message MedAI (preview)
+              Message Med-Pal AI (preview)
             </div>
             <div className="text-xs text-gray-500 mt-1">
               Your chats are saved when you're signed in.

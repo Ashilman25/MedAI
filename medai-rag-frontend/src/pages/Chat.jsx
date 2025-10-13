@@ -435,7 +435,7 @@ export default function Chat() {
         {/* Main chat (always the middle area when signed-in; left area when guest) */}
         <div className='rounded-2xl border border-gray-200 bg-white shadow-card flex flex-col h-[calc(100vh-200px)] print-area'>
           <header className='px-4 py-3 border-b border-gray-100 sticky top-0 bg-white z-10'>
-            <div className='font-semibold'>Ask MedAI</div>
+            <div className='font-semibold'>Ask Med-Pal AI</div>
             {!user && (
               <div className='mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900'>
                 Guest mode: local-only history. <a href="/signin" className="underline">Sign in</a> for cloud-saved chats.

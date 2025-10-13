@@ -1,14 +1,134 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" width="240" height="240">
-  <defs>
-    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#3B82F6"/>
-      <stop offset="1" stop-color="#10B981"/>
-    </linearGradient>
-  </defs>
-  <rect rx="24" ry="24" width="240" height="240" fill="url(#g)"/>
-  <g fill="#fff">
-    <path d="M70 70 h100 a10 10 0 0 1 10 10 v20 h-20 v-10 H80 v90 h30 v20 H80 a20 20 0 0 1-20-20 V80 a10 10 0 0 1 10-10z"/>
-    <circle cx="170" cy="150" r="34" fill="none" stroke="#fff" stroke-width="16"/>
-    <path d="M170 126 v48" stroke="#fff" stroke-width="16" stroke-linecap="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+<title id="title">Robot Doctor Headshot Icon</title>
+<desc id="desc">A friendly robot in a white lab coat within a circular avatar, on a teal-to-blue gradient background.</desc>
+<defs>
+  <!-- Background radial gradient -->
+  <radialGradient id="bgGrad" cx="50%" cy="40%" r="65%">
+    <stop offset="0" stop-color="#79E6D2" stop-opacity="1"></stop>
+    <stop offset="1" stop-color="#1F9BD3" stop-opacity="1"></stop>
+  </radialGradient>
+
+  <!-- Helmet gloss gradient -->
+  <linearGradient id="helmetGloss" x1="0%" y1="0%" x2="100%" y2="100%">
+    <stop offset="0" stop-color="#FFFFFF" stop-opacity=".55"></stop>
+    <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"></stop>
+  </linearGradient>
+
+  <!-- Avatar circular clip -->
+  <clipPath id="avatarClip">
+    <circle cx="128" cy="128" r="120"></circle>
+  </clipPath>
+
+  <!-- Soft inner shadow filter (very subtle) -->
+  <filter id="innerSoft" x="-20%" y="-20%" width="140%" height="140%">
+    <feFlood flood-color="#1E2A32" flood-opacity=".08" result="f"></feFlood>
+    <feComposite in="f" in2="SourceAlpha" operator="in" result="mask"></feComposite>
+    <feGaussianBlur in="mask" stdDeviation="2" result="blur"></feGaussianBlur>
+    <feComposite in="SourceGraphic" in2="blur" operator="over"></feComposite>
+  </filter>
+
+  <!-- LED glow for antenna -->
+  <filter id="ledGlow" x="-50%" y="-50%" width="200%" height="200%">
+    <feGaussianBlur stdDeviation="2" result="g"></feGaussianBlur>
+    <feMerge>
+      <feMergeNode in="g"></feMergeNode>
+      <feMergeNode in="SourceGraphic"></feMergeNode>
+    </feMerge>
+  </filter>
+</defs>
+
+<!-- Safe drawing area -->
+<g id="icon" clip-path="url(#avatarClip)" filter="url(#innerSoft)">
+  <!-- bg -->
+  <g id="bg" aria-label="Circular avatar background with blue-green gradient.">
+    <circle cx="128" cy="128" r="120" fill="url(#bgGrad)"></circle>
   </g>
+
+  <!-- subject_base: head + torso silhouette -->
+  <g id="subject_base" stroke="#1E2A32" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <!-- Neck shadow -->
+    <ellipse cx="128" cy="168" rx="26" ry="10" fill="#1E2A32" opacity=".18" stroke="none"></ellipse>
+    <!-- Helmet / head shell -->
+    <rect x="76" y="70" width="104" height="84" rx="14" ry="14" fill="#D9E2EC"></rect>
+    <path d="M76,118 h104" stroke="#A9B8C7" opacity=".35"></path>
+    <!-- Chin ring (subtle) -->
+    <rect x="88" y="142" width="80" height="10" rx="5" fill="#A9B8C7" opacity=".25" stroke="none"></rect>
+    <!-- Shoulders / upper torso silhouette -->
+    <path d="M64 184c12-12 30-20 64-20s52 8 64 20v24H64z" fill="#FFFFFF" stroke="none"></path>
+  </g>
+
+  <!-- faceplate & features -->
+  <g id="faceplate" stroke="#1E2A32" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Faceplate -->
+    <rect x="88" y="86" width="80" height="40" rx="8" fill="#D9E2EC"></rect>
+    <!-- Eyes -->
+    <rect x="104" y="98" width="20" height="10" rx="4" fill="#1F9BD3" stroke="none"></rect>
+    <rect x="132" y="98" width="20" height="10" rx="4" fill="#1F9BD3" stroke="none"></rect>
+    <!-- Eye highlights -->
+    <rect x="106" y="99" width="7" height="4" rx="2" fill="#79E6D2" opacity=".5" stroke="none"></rect>
+    <rect x="134" y="99" width="7" height="4" rx="2" fill="#79E6D2" opacity=".5" stroke="none"></rect>
+    <!-- Mouth (minimal slit) -->
+    <path d="M116 120h24" stroke="#6B7C8E" stroke-width="2" stroke-linecap="round"></path>
+    <!-- Antenna -->
+    <g id="antenna" transform="translate(128 62)">
+      <path d="M0 0v-10" stroke="#1E2A32" stroke-width="2"></path>
+      <circle cx="0" cy="-13" r="4" fill="#FF5A5F" filter="url(#ledGlow)"></circle>
+    </g>
+    <!-- Helmet gloss -->
+    <rect x="76" y="70" width="104" height="84" rx="14" fill="url(#helmetGloss)" stroke="none" opacity=".7"></rect>
+  </g>
+
+  <!-- attire: coat, underscrub, stethoscope, badge -->
+  <g id="attire" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Underscrub (V-neck) -->
+    <path d="M128 164l-18 18h36z" fill="#18B6A4" stroke="#1E2A32" stroke-width="2"></path>
+    <!-- Coat collar & lapels -->
+    <g id="coat">
+      <!-- Left lapel -->
+      <path d="M92 156l24 26 12-18-12-8-14-6z" fill="#FFFFFF" stroke="#A9B8C7" stroke-width="1.5"></path>
+      <!-- Right lapel -->
+      <path d="M164 156l-24 26-12-18 12-8 14-6z" fill="#FFFFFF" stroke="#A9B8C7" stroke-width="1.5"></path>
+      <!-- Upper coat body -->
+      <path d="M64 184c12-12 30-20 64-20s52 8 64 20v24H64z" fill="#FFFFFF" stroke="#1E2A32" stroke-width="2"></path>
+      <!-- Coat fold shadows -->
+      <path d="M120 176c-6 2-10 5-12 8" stroke="#1E2A32" stroke-opacity=".12" stroke-width="3"></path>
+      <path d="M136 176c6 2 10 5 12 8" stroke="#1E2A32" stroke-opacity=".12" stroke-width="3"></path>
+    </g>
+    <!-- Stethoscope (asymmetric over left lapel) -->
+    <g id="stethoscope" fill="none">
+      <!-- Yoke -->
+      <path d="M112 150c-10 4-18 12-18 22 0 10 8 18 18 18" stroke="#6B7C8E" stroke-width="3"></path>
+      <!-- Tubing -->
+      <path d="M112 190c8 0 14-6 14-14 0-5-3-10-7-12" stroke="#1F9BD3" stroke-width="4"></path>
+      <!-- Chestpiece -->
+      <circle cx="112" cy="190" r="6.5" fill="#A9B8C7" stroke="#1E2A32" stroke-width="2"></circle>
+      <circle cx="112" cy="190" r="3.5" fill="#EEF3F6" stroke="none"></circle>
+    </g>
+    <!-- Badge on right lapel -->
+    <g id="badge" transform="translate(168 168)">
+      <rect x="-9" y="-9" width="18" height="18" rx="3" fill="#EEF3F6" stroke="#1E2A32" stroke-width="2"></rect>
+      <!-- Medical cross -->
+      <path d="M-1  -6h2v5h5v2h-5v5h-2v-5h-5v-2h5z" fill="#FF5A5F"></path>
+    </g>
+  </g>
+
+  <!-- highlights -->
+  <g id="highlights">
+    <!-- Subtle chin highlight on faceplate -->
+    <ellipse cx="128" cy="128" rx="28" ry="10" fill="#FFFFFF" opacity=".08"></ellipse>
+  </g>
+
+  <!-- shadows -->
+  <g id="shadows">
+    <!-- Coat inner shadow already handled; add soft under-chin shadow -->
+    <ellipse cx="128" cy="146" rx="22" ry="6" fill="#1E2A32" opacity=".12"></ellipse>
+  </g>
+
+  <!-- fx: antenna LED soft glow overlay (extra gentle) -->
+  <g id="fx" opacity=".35">
+    <circle cx="128" cy="49" r="10" fill="#FF5A5F"></circle>
+  </g>
+</g>
+
+<!-- Accessibility / contrast guidance (non-rendering metadata via ARIA already provided) -->
 </svg>

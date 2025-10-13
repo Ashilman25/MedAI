@@ -57,7 +57,7 @@ export function ExportView({ chatId, title, messages }) {
     <div className="print-wrap">
       {/* Cover */}
       <section className="cover">
-        <div className="app">MedAI — Chat Export</div>
+        <div className="app">Med-Pal AI — Chat Export</div>
         <h1 className="title">{safeTitle}</h1>
         <div className="meta">
           <div><strong>Chat ID:</strong> <code>{chatId || 'N/A'}</code></div>
@@ -71,7 +71,7 @@ export function ExportView({ chatId, title, messages }) {
 
       {/* Optional header for subsequent pages (MVP: appears once; Chrome lacks true running headers) */}
       <div className="running-header">
-        MedAI — Chat Export • {safeTitle}
+        Med-Pal AI — Chat Export • {safeTitle}
       </div>
 
       {/* Thread */}

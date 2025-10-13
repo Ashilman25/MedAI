@@ -14,7 +14,7 @@ export default function Landing() {
       <div className="space-y-6">
         <div className="inline-flex items-center gap-3">
           <img src={Logo} alt="logo" className="h-10 w-10" />
-          <h1 className="text-3xl font-bold">MedAI-RAG</h1>
+          <h1 className="text-3xl font-bold">Med-Pal AI</h1>
         </div>
         <p className="text-gray-700 text-lg">
           Your AI-powered medical reference assistant with grounded, cited answers.

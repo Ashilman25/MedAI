@@ -19,7 +19,7 @@ export default function App() {
         <div className='mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between'>
           <Link to='/' className='flex items-center gap-2'>
             <img src={Logo} alt='MedAI-RAG' className='h-8 w-8'/>
-            <span className='font-semibold'>MedAI-RAG</span>
+            <span className='font-semibold'>Med-Pal AI</span>
           </Link>
           <div className='flex items-center gap-4 text-sm'>
             <Link to='/chat' className={navCls(pathname==='/chat')}>Chat</Link>
@@ -48,7 +48,7 @@ export default function App() {
       <footer className='border-t border-gray-200 bg-white text-xs text-gray-500'>
         <div className='mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between'>
           <p>Not for patient use. For educational and research purposes only.</p>
-          <p>© {new Date().getFullYear()} MedAI-RAG</p>
+          <p>© {new Date().getFullYear()} Med-Pal AI</p>
         </div>
       </footer>
     </div>
