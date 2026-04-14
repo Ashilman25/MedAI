@@ -60,8 +60,9 @@ def _mock_generate(prompt: str) -> str:
 
 def _openai_generate(system: str, user: str) -> str:
     s = get_settings()
+    import traceback
+    from openai import OpenAI
     try:
-        from openai import OpenAI
         client = OpenAI(api_key=s.OPENAI_API_KEY)
         out = client.chat.completions.create(
             model=s.OPENAI_MODEL,
@@ -70,8 +71,8 @@ def _openai_generate(system: str, user: str) -> str:
         )
         return out.choices[0].message.content.strip()
     except Exception as e:
-        warn(f"OpenAI generation error: {e}")
-        return _mock_generate(user)
+        warn(f"OpenAI generation error: {e}\n{traceback.format_exc()}")
+        raise
 
 # ------------------------
 # Retrieval & prompt build
@@ -328,7 +329,11 @@ def _score_with_llm(query: str, answer_text: str, hits: List[Tuple[float, Dict[s
 
     payload = _build_scorer_payload(query, answer_text, hits)
     user_json = json.dumps(payload, ensure_ascii=False)
-    raw = _openai_generate(_SCORER_SYSTEM, user_json)
+    try:
+        raw = _openai_generate(_SCORER_SYSTEM, user_json)
+    except Exception as e:
+        warn(f"Scorer LLM call failed: {e}")
+        return _heuristic_metrics(hits)
 
     try:
         data = json.loads(raw)
@@ -406,7 +411,11 @@ def answer(query: str, top_k: int = 5) -> Dict[str, Any]:
     if s.MOCK_COMPLETIONS or not s.OPENAI_API_KEY:
         text = _mock_generate(user)
     else:
-        text = _openai_generate(system, user)
+        try:
+            text = _openai_generate(system, user)
+        except Exception as e:
+            warn(f"LLM generation failed: {e}")
+            text = "⚠ Unable to generate answer — LLM service unavailable. Please try again later."
 
     # 3) Score confidence with v1.1 scorer (LLM JSON) with safe fallback
     metrics = _score_with_llm(query, text, hits)

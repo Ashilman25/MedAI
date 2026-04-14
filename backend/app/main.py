@@ -1,4 +1,6 @@
 import os
+import re
+import uuid
 from fastapi import FastAPI, UploadFile, File, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -21,9 +23,22 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=s.CORS_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization"],
 )
+
+def _safe_filename(original: str) -> str:
+    """Sanitize an uploaded filename to prevent path-traversal attacks.
+
+    Strips directory components, replaces unsafe characters, and prepends a
+    short random hex prefix so collisions are nearly impossible.
+    """
+    base = os.path.basename(original)          # strip any directory separators
+    base = re.sub(r'[^\w.\-]', '_', base)      # keep only word chars, dots, hyphens
+    if not base or base in (".", ".."):
+        base = "upload"
+    return f"{uuid.uuid4().hex[:8]}_{base}"
+
 
 def _expand_synonyms(q: str) -> str:
     """
@@ -96,9 +111,14 @@ async def ingest(files: List[UploadFile] = File(...), uid: Optional[str] = Query
         raise HTTPException(status_code=401, detail="Sign-in required")
     
     upload_dir = os.path.join(s.STORAGE_DIR, "_uploads"); os.makedirs(upload_dir, exist_ok=True)
+    upload_real = os.path.realpath(upload_dir)
     paths = []
     for f in files:
-        dest = os.path.join(upload_dir, f.filename)
+        safe_name = _safe_filename(f.filename or "upload")
+        dest = os.path.join(upload_dir, safe_name)
+        # Guard: resolved path must stay inside upload_dir
+        if not os.path.realpath(dest).startswith(upload_real + os.sep):
+            raise HTTPException(status_code=400, detail=f"Invalid filename: {f.filename!r}")
         with open(dest, "wb") as out: out.write(await f.read())
         paths.append(dest)
     res = ingest_paths(paths, owner_uid=uid)
@@ -163,8 +183,8 @@ def expand_sources(req: ExpandRequest):
     lang = req.lang or os.getenv("PUBMED_LANG", "en")
     base_mindate = req.mindate if req.mindate is not None else (int(os.getenv("PUBMED_MINDATE", "0")) or None)
     target_conf = req.target_confidence
-    max_passes = max(1, int(req.max_passes))
-    per_pass_retmax = max(10, int(req.per_pass_retmax))
+    max_passes = req.max_passes
+    per_pass_retmax = req.per_pass_retmax
 
     # Build base query
     used_terms = False
@@ -182,30 +202,31 @@ def expand_sources(req: ExpandRequest):
 
     total_found = total_added = total_skipped = 0
     last_answer = None
+    passes_done = 0
 
-    for p in range(1, max_passes + 1):
+    for passes_done in range(1, max_passes + 1):
         # pass-specific types
-        if req.types and p == 1:
+        if req.types and passes_done == 1:
             types = req.types
         else:
-            types = _default_types_for_pass(p)
+            types = _default_types_for_pass(passes_done)
 
         # widen date on later passes
-        if p == 1:
+        if passes_done == 1:
             mindate = base_mindate
-        elif p == 2:
+        elif passes_done == 2:
             mindate = base_mindate or 2015
         else:
             mindate = min(req.fallback_mindate, (base_mindate or req.fallback_mindate))
 
         # build pass query
         q = base_query
-        if p == 2:
+        if passes_done == 2:
             # add 1–2 intent-specific words if not already present
             extras = [w for w in _INTENT_EXPANSIONS.get(intent, []) if w.lower() not in q.lower()]
             if extras:
                 q = f"({q}) OR ({' OR '.join(extras)})"
-        if p >= 3:
+        if passes_done >= 3:
             # gentle broadening: ensure at least one generic category token present
             cat = _INTENT_EXPANSIONS.get(intent, [])
             if cat:
@@ -213,7 +234,7 @@ def expand_sources(req: ExpandRequest):
                 if token.lower() not in q.lower():
                     q = f"({q}) OR {token}"
 
-        retmax = per_pass_retmax * (1 if p == 1 else 2 if p == 2 else 3)
+        retmax = per_pass_retmax * (1 if passes_done == 1 else 2 if passes_done == 2 else 3)
 
         # 1) fetch
         pm_docs = fetch_pubmed_docs(
@@ -254,7 +275,7 @@ def expand_sources(req: ExpandRequest):
             "found": total_found,
             "added": total_added,
             "skipped": total_skipped,
-            "passes": min(max_passes, p),
+            "passes": passes_done,
             "conf": float(last_answer.get("confidence", 0.0)),
         })
     except Exception:
@@ -267,7 +288,7 @@ def expand_sources(req: ExpandRequest):
         found=total_found,
         added=total_added,
         skipped=total_skipped,
-        passes=min(max_passes, p),
+        passes=passes_done,
     )
 
 
