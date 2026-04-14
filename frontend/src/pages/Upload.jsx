@@ -14,7 +14,7 @@ export default function Upload() {
     setMessage('')
 
     try {
-      const res = await ingest(file, user?.uid)
+      const res = await ingest(file)
       setStatus('done')
       setMessage(`✅ Successfully ingested "${file.name}"`)
       console.log('Ingest result:', res)

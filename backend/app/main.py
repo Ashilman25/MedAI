@@ -1,7 +1,8 @@
 import os
 import re
 import uuid
-from fastapi import FastAPI, UploadFile, File, Query
+from contextlib import asynccontextmanager
+from fastapi import FastAPI, UploadFile, File, Query, Depends, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional
@@ -15,10 +16,55 @@ from .models import ExpandRequest, ExpandResponse
 from .ingest import fetch_pubmed_docs, ingest_text_items
 from .logging_config import warn
 from fastapi import HTTPException
+import firebase_admin
+from firebase_admin import auth as firebase_auth
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from starlette.responses import JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
+from collections import defaultdict
+from datetime import date
+from typing import Dict
 
+MAX_BODY_SIZE = 50 * 1024 * 1024  # 50MB
+MAX_FILE_SIZE = 25 * 1024 * 1024  # 25MB per file
+
+try:
+    firebase_admin.initialize_app()
+except Exception as e:
+    warn(f"Firebase Admin SDK init failed: {e}. Token verification will be unavailable.")
 
 s = get_settings()
-app = FastAPI(title="MedAI‑RAG Backend", version="0.1.0")
+
+
+async def get_current_uid(authorization: str = Header(None)) -> Optional[str]:
+    """Verify Firebase ID token from Authorization: Bearer <token> header."""
+    if not authorization or not authorization.startswith("Bearer "):
+        return None  # guest/anonymous access
+    token = authorization.split("Bearer ", 1)[1]
+    try:
+        decoded = firebase_auth.verify_id_token(token)
+        return decoded["uid"]
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    s = get_settings()
+    if s.OPENAI_API_KEY and not s.MOCK_COMPLETIONS:
+        try:
+            from openai import OpenAI
+            client = OpenAI(api_key=s.OPENAI_API_KEY)
+            client.models.list()
+            warn("OpenAI API key validated successfully")
+        except Exception as e:
+            warn(f"OpenAI API key validation failed: {e}")
+            raise RuntimeError("Cannot start with invalid OPENAI_API_KEY")
+    yield
+
+app = FastAPI(title="MedAI‑RAG Backend", version="0.1.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=s.CORS_ORIGINS,
@@ -26,6 +72,67 @@ app.add_middleware(
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization"],
 )
+
+class LimitBodySizeMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        content_length = request.headers.get("content-length")
+        if content_length:
+            try:
+                if int(content_length) > MAX_BODY_SIZE:
+                    return JSONResponse(status_code=413, content={"detail": "Request body too large"})
+            except ValueError:
+                return JSONResponse(status_code=400, content={"detail": "Invalid Content-Length header"})
+        return await call_next(request)
+
+app.add_middleware(LimitBodySizeMiddleware)
+
+def _rate_limit_key(request: Request) -> str:
+    """Use authenticated UID if available, fall back to IP."""
+    auth = request.headers.get("authorization", "")
+    if auth.startswith("Bearer "):
+        try:
+            token = auth.split("Bearer ", 1)[1]
+            decoded = firebase_auth.verify_id_token(token)
+            return decoded["uid"]
+        except Exception:
+            pass
+    return get_remote_address(request)
+
+limiter = Limiter(key_func=_rate_limit_key)
+app.state.limiter = limiter
+
+@app.exception_handler(RateLimitExceeded)
+async def _rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded):
+    return JSONResponse(
+        status_code=429,
+        content={"detail": f"Rate limit exceeded: {exc.detail}"},
+        headers={"Retry-After": str(getattr(exc, 'retry_after', 60))}
+    )
+
+
+# In-memory per-user daily usage tracker
+_daily_usage: Dict[str, Dict[str, int]] = defaultdict(lambda: {"expand": 0, "ask": 0, "ingest": 0, "date": ""})
+
+DAILY_LIMITS = {
+    "expand": 25,
+    "ask": 200,
+    "ingest": 50,
+}
+
+def check_daily_limit(uid: str, operation: str):
+    today = str(date.today())
+    tracker = _daily_usage[uid or "anonymous"]
+    if tracker["date"] != today:
+        tracker.clear()
+        tracker["date"] = today
+    count = tracker.get(operation, 0)
+    if count >= DAILY_LIMITS.get(operation, 999):
+        raise HTTPException(
+            status_code=429,
+            detail=f"Daily limit reached for {operation}. Try again tomorrow."
+        )
+    tracker[operation] = count + 1
+
 
 def _safe_filename(original: str) -> str:
     """Sanitize an uploaded filename to prevent path-traversal attacks.
@@ -102,14 +209,18 @@ def _default_types_for_pass(pass_idx: int) -> list[str]:
 def health(): return {"ok": True}
 
 @app.post("/ask", response_model=AskResponse)
-def ask(req: AskRequest): return AskResponse(**answer(req.query, req.top_k))
+@limiter.limit("20/minute")
+def ask(request: Request, req: AskRequest, uid: Optional[str] = Depends(get_current_uid)):
+    check_daily_limit(uid, "ask")
+    return AskResponse(**answer(req.query, req.top_k))
 
 @app.post("/ingest", response_model=IngestResponse)
-async def ingest(files: List[UploadFile] = File(...), uid: Optional[str] = Query(default=None)):
+@limiter.limit("10/minute")
+async def ingest(request: Request, files: List[UploadFile] = File(...), uid: Optional[str] = Depends(get_current_uid)):
     
     if not uid:
         raise HTTPException(status_code=401, detail="Sign-in required")
-    
+    check_daily_limit(uid, "ingest")
     upload_dir = os.path.join(s.STORAGE_DIR, "_uploads"); os.makedirs(upload_dir, exist_ok=True)
     upload_real = os.path.realpath(upload_dir)
     paths = []
@@ -119,14 +230,19 @@ async def ingest(files: List[UploadFile] = File(...), uid: Optional[str] = Query
         # Guard: resolved path must stay inside upload_dir
         if not os.path.realpath(dest).startswith(upload_real + os.sep):
             raise HTTPException(status_code=400, detail=f"Invalid filename: {f.filename!r}")
-        with open(dest, "wb") as out: out.write(await f.read())
+        content = await f.read()
+        if len(content) > MAX_FILE_SIZE:
+            raise HTTPException(status_code=413, detail=f"File '{f.filename}' exceeds 25MB limit")
+        with open(dest, "wb") as out:
+            out.write(content)
         paths.append(dest)
     res = ingest_paths(paths, owner_uid=uid)
     return IngestResponse(**res)
 
 
 @app.get("/documents")
-def list_docs(uid: Optional[str] = Query(default=None)):
+@limiter.limit("60/minute")
+def list_docs(request: Request, uid: Optional[str] = Depends(get_current_uid)):
     """
     List documents indexed.
 
@@ -173,11 +289,13 @@ def list_docs(uid: Optional[str] = Query(default=None)):
 
 
 @app.post("/expand-sources", response_model=ExpandResponse)
-def expand_sources(req: ExpandRequest):
+@limiter.limit("5/minute")
+def expand_sources(request: Request, req: ExpandRequest, uid: Optional[str] = Depends(get_current_uid)):
     """
     Wide/iterative expansion with PubMed, ingest, re-answer.
     Supports either a raw query (legacy) or structured query_terms + intent.
     """
+    check_daily_limit(uid, "expand")
     # env defaults
     env_types = [t.strip() for t in os.getenv("PUBMED_FILTER_TYPES", "Guideline,Review").split(",") if t.strip()]
     lang = req.lang or os.getenv("PUBMED_LANG", "en")
@@ -248,7 +366,7 @@ def expand_sources(req: ExpandRequest):
         found = len(pm_docs)
 
         # 2) ingest (dedup by pmid), tag owner
-        stats = ingest_text_items(pm_docs, owner_uid=req.owner_uid)
+        stats = ingest_text_items(pm_docs, owner_uid=uid)
         added = stats.get("added", 0)
         skipped = stats.get("skipped", 0)
         total_found += found
@@ -301,7 +419,9 @@ class SuggestTermsResp(BaseModel):
     method: str  # "heuristic" | "llm"
 
 @app.post("/suggest-terms", response_model=SuggestTermsResp)
-def suggest_terms(req: SuggestTermsReq):
+@limiter.limit("20/minute")
+def suggest_terms(request: Request, req: SuggestTermsReq, uid: Optional[str] = Depends(get_current_uid)):
+    check_daily_limit(uid, "ask")
     from .query_suggest import extract_terms_and_intent
     terms, intent, method = extract_terms_and_intent(req.message)
     try:

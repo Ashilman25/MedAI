@@ -69,6 +69,9 @@ def _openai_generate(system: str, user: str) -> str:
             messages=[{"role":"system","content":system},{"role":"user","content":user}],
             temperature=0.2
         )
+        usage = out.usage
+        if usage:
+            warn(f"OpenAI call: model={s.OPENAI_MODEL} prompt_tokens={usage.prompt_tokens} completion_tokens={usage.completion_tokens}")
         return out.choices[0].message.content.strip()
     except Exception as e:
         warn(f"OpenAI generation error: {e}\n{traceback.format_exc()}")

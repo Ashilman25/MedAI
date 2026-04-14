@@ -45,7 +45,7 @@ export default function DocsPage() {
     try {
 
       setLoading(true);
-      const data = await listDocuments(user?.uid);
+      const data = await listDocuments();
       if (myReqId !== reqIdRef.current) return;
       setDocs(Array.isArray(data.docs) ? data.docs : []);
       setErr(null);

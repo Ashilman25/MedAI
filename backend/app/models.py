@@ -35,8 +35,7 @@ class ExpandRequest(BaseModel):
     mindate: Optional[int] = None       
     fallback_mindate: int = 2010        
     lang: Optional[str] = "en"
-    types: Optional[List[str]] = None   
-    owner_uid: Optional[str] = None
+    types: Optional[List[str]] = None
 
 class ExpandResponse(BaseModel):
     answer: str
