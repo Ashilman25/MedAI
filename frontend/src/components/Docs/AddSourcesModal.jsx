@@ -230,7 +230,7 @@ export default function AddSourcesModal({ open, onClose, onComplete }) {
 
     // Snapshot baseline counts before this run
     try {
-      const before = await listDocuments(user.uid);
+      const before = await listDocuments();
       setBaseCounts(computeSourceCounts(before?.docs || []));
     } catch (_) {
       setBaseCounts(null);
@@ -285,7 +285,6 @@ export default function AddSourcesModal({ open, onClose, onComplete }) {
         const ctrl = new AbortController();
         controllersRef.current = [ctrl]; // only keep current one
         const res = await expandSources(term, {
-          owner_uid: user.uid,
           wide: true,
           lang,
           mindate: minDate || undefined,
@@ -330,7 +329,7 @@ export default function AddSourcesModal({ open, onClose, onComplete }) {
       // Snapshot final counts and compute delta-by-source
       let finals = null;
       try {
-        const after = await listDocuments(user.uid);
+        const after = await listDocuments();
         finals = computeSourceCounts(after?.docs || []);
         setFinalCounts(finals);
       } catch (_) {
@@ -756,9 +755,9 @@ export default function AddSourcesModal({ open, onClose, onComplete }) {
                     </button>
                     <button
                       onClick={handleSearch}
-                      disabled={!terms.length}
+                      disabled={!terms.length || phase === "running"}
                       className={`rounded-full px-4 py-1.5 text-sm ${
-                        terms.length
+                        terms.length && phase !== "running"
                           ? "bg-gray-900 text-white hover:opacity-95 dark:bg-gray-100 dark:text-gray-900"
                           : "cursor-not-allowed bg-gray-300 text-gray-600 dark:bg-gray-700 dark:text-gray-400"
                       }`}

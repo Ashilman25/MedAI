@@ -4,6 +4,8 @@ __pycache__/
 .venv/
 .env
 storage/
+env-vars.json
+.vscode
 
 # Node
 node_modules/

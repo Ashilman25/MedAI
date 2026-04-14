@@ -1,6 +1,5 @@
 from pydantic import BaseModel, Field
 from typing import List, Optional
-from pydantic import BaseModel
 
 class Citation(BaseModel):
     title: str
@@ -8,8 +7,8 @@ class Citation(BaseModel):
     snippet: str
 
 class AskRequest(BaseModel):
-    query: str = Field(..., min_length=2)
-    top_k: int = 5
+    query: str = Field(..., min_length=2, max_length=2000)
+    top_k: int = Field(5, ge=1, le=50)
 
 class AskResponse(BaseModel):
     answer: str
@@ -23,25 +22,24 @@ class IngestResponse(BaseModel):
 
 class ExpandRequest(BaseModel):
 
-    query: Optional[str] = None
+    query: Optional[str] = Field(None, max_length=2000)
     query_terms: Optional[List[str]] = None
     intent: Optional[str] = None  
 
-    top_k: int = 5
+    top_k: int = Field(5, ge=1, le=50)
 
     wide: bool = True
-    target_confidence: float = 0.62
-    max_passes: int = 3
-    per_pass_retmax: int = 60
+    target_confidence: float = Field(0.62, ge=0.0, le=1.0)
+    max_passes: int = Field(3, ge=1, le=5)
+    per_pass_retmax: int = Field(60, ge=10, le=500)
     mindate: Optional[int] = None       
     fallback_mindate: int = 2010        
     lang: Optional[str] = "en"
-    types: Optional[List[str]] = None   
-    owner_uid: Optional[str] = None
+    types: Optional[List[str]] = None
 
 class ExpandResponse(BaseModel):
     answer: str
-    citations: list
+    citations: List[Citation]
     confidence: float
 
     found: int = 0      # items fetched (articles)

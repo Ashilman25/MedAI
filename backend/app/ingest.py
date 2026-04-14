@@ -171,21 +171,21 @@ def _abstract_to_text(abstract_obj) -> str:
         return str(abstract_obj)
 
 
-def _safe_get_year(article: Dict[str, Any]) -> Optional[str]:
+def _safe_get_year(article: Dict[str, Any]) -> Optional[int]:
     try:
         # Try ArticleDate first
         dates = article.get("ArticleDate")
         if dates and isinstance(dates, list) and dates:
             y = dates[0].get("Year")
             if y:
-                return str(y)
+                return int(y)
         # Then Journal PubDate
         pub = article.get("Journal", {}).get("JournalIssue", {}).get("PubDate", {})
         if isinstance(pub, dict) and "Year" in pub:
-            return str(pub["Year"])
+            return int(pub["Year"])
         if isinstance(pub, dict) and "MedlineDate" in pub:
             # MedlineDate like "2019 Jan-Feb"
-            return str(pub["MedlineDate"]).split()[0]
+            return int(str(pub["MedlineDate"]).split()[0])
     except Exception:
         pass
     return None
@@ -356,12 +356,13 @@ def ingest_text_items(items: List[Dict[str, Any]], owner_uid: Optional[str] = No
         pmid = str(doc.get("pmid") or "")
         # Per-context dedupe: skip only if this PMID already exists in THIS visibility context
         if pmid and pmid in existing_pmids_for_context:
+            skipped += 1
             continue
 
         title = doc.get("title") or "Source"
         url = doc.get("url") or ""
         journal = doc.get("journal") or ""
-        year = doc.get("year") or ""
+        year = doc.get("year")
 
         chunks = chunk_text(txt, chunk_size=1200, overlap=200)
         if not chunks:

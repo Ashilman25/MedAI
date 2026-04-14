@@ -1,22 +1,33 @@
+import { getAuth } from 'firebase/auth';
+
 const API_BASE = import.meta.env.VITE_API_BASE_URL || ''
 const MOCK = (import.meta.env.VITE_MOCK_MODE ?? 'true') === 'true'
 const DEFAULT_TOP_K = Number(import.meta.env.VITE_DEFAULT_TOP_K ?? 5)
 
-export async function ask(query, top_k = DEFAULT_TOP_K) {
+async function authHeaders() {
+    const user = getAuth().currentUser;
+    if (!user) return {};
+    const token = await user.getIdToken();
+    return { Authorization: `Bearer ${token}` };
+}
+
+export async function ask(query, top_k = DEFAULT_TOP_K, options = {}) {
   if (MOCK || !API_BASE) {
     const { mockAsk } = await import('./mock')
     return mockAsk(query, top_k)
   }
+  const auth = await authHeaders();
   const r = await fetch(`${API_BASE}/ask`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query, top_k })
+    headers: { 'Content-Type': 'application/json', ...auth },
+    body: JSON.stringify({ query, top_k }),
+    signal: options.signal,
   })
   if (!r.ok) throw new Error(`API error: ${r.status}`)
   return r.json()
 }
 
-export async function ingest(file, uid) {
+export async function ingest(file) {
   if (MOCK || !API_BASE) {
     const { mockIngest } = await import('./mock')
     return mockIngest(file)
@@ -24,17 +35,16 @@ export async function ingest(file, uid) {
   const form = new FormData()
   form.append('files', file)
 
-  const q = uid ? `?uid=${encodeURIComponent(uid)}` : ''
-  const r = await fetch(`${API_BASE}/ingest${q}`, { method: 'POST', body: form })
+  const auth = await authHeaders();
+  const r = await fetch(`${API_BASE}/ingest`, { method: 'POST', headers: auth, body: form })
 
   if (!r.ok) throw new Error(`API error: ${r.status}`)
   return r.json()
 }
 
-export async function listDocuments(uid) {
-  const API_BASE = import.meta.env.VITE_API_BASE_URL || "";
-  const q = uid ? `?uid=${encodeURIComponent(uid)}` : "?uid="; 
-  const r = await fetch(`${API_BASE}/documents${q}`, { method: "GET" });
+export async function listDocuments() {
+  const auth = await authHeaders();
+  const r = await fetch(`${API_BASE}/documents`, { method: 'GET', headers: auth });
   if (!r.ok) throw new Error(`API error: ${r.status}`);
   return r.json();
 }
@@ -73,15 +83,15 @@ export async function expandSources(query, options = {}) {
     types:
       options.types ??
       ['Guideline', 'Practice Guideline', 'Systematic Review', 'Review'],
-    owner_uid: options.owner_uid ?? null,
   };
 
   if (options.query_terms?.length) body.query_terms = options.query_terms;
   if (options.intent) body.intent = options.intent;
 
+  const auth = await authHeaders();
   const res = await fetchWithRetry(`${API_BASE}/expand-sources`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...auth },
     body: JSON.stringify(body),
     signal: options.signal,
   });
@@ -90,9 +100,10 @@ export async function expandSources(query, options = {}) {
 
 
 export async function suggestTerms(message) {
+  const auth = await authHeaders();
   const res = await fetch(`${API_BASE}/suggest-terms`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...auth },
     body: JSON.stringify({ message })
   });
   if (!res.ok) throw new Error(`API error: ${res.status}`);

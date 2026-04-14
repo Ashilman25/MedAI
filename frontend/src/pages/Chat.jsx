@@ -80,6 +80,7 @@ export default function Chat() {
   const [loading, setLoading] = useState(false)
   const [lastAnswer, setLastAnswer] = useState(null)
   const scrollRef = useRef(null)
+  const askControllerRef = useRef(null)
 
   const [lastQuery, setLastQuery] = useState('')
   const [expandPrompt, setExpandPrompt] = useState(false)
@@ -87,6 +88,7 @@ export default function Chat() {
   const SHOW_SCAN_TERMS = (import.meta.env.VITE_SHOW_SCAN_TERMS ?? 'true') === 'true'
 
   // scanning UX states
+  const [scanCooldown, setScanCooldown] = useState(0)
   const [scanning, setScanning] = useState(false)
   const [scanStep, setScanStep] = useState(0)
   const [scanStats, setScanStats] = useState(null)
@@ -115,6 +117,13 @@ export default function Chat() {
   useEffect(() => {
     scrollRef.current?.scrollTo(0, scrollRef.current.scrollHeight)
   }, [messages, loading, scanning, showScanSummary])
+
+  // scan cooldown countdown
+  useEffect(() => {
+    if (scanCooldown <= 0) return
+    const t = setTimeout(() => setScanCooldown(s => s - 1), 1000)
+    return () => clearTimeout(t)
+  }, [scanCooldown])
 
   // load messages when switching chats
   useEffect(() => {
@@ -254,8 +263,12 @@ export default function Chat() {
 
     // 3) Ask backend
     setLoading(true)
+    // Abort any previous in-flight /ask request
+    if (askControllerRef.current) askControllerRef.current.abort()
+    const controller = new AbortController()
+    askControllerRef.current = controller
     try {
-      const res = await ask(q)
+      const res = await ask(q, undefined, { signal: controller.signal })
 
       // Paint assistant message immediately (optimistic)
       const aiMsg = {
@@ -279,6 +292,7 @@ export default function Chat() {
 
 
     } catch (e) {
+      if (e.name === 'AbortError') return
       console.error('ask() failed:', e)
       const errMsg = {
         role: 'assistant',
@@ -297,7 +311,7 @@ export default function Chat() {
         })
       }
     } finally {
-      setLoading(false)
+      if (!controller.signal.aborted) setLoading(false)
     }
   }
 
@@ -346,7 +360,6 @@ export default function Chat() {
         lang: 'en',
         types: ['Guideline','Practice Guideline','Systematic Review','Review'],
         top_k: Number(import.meta.env.VITE_DEFAULT_TOP_K ?? 5),
-        owner_uid: user?.uid,
         ...(terms?.length ? { query_terms: terms, intent } : {})
       })
 
@@ -370,6 +383,7 @@ export default function Chat() {
 
       setTimeout(() => {
         setScanning(false)
+        setScanCooldown(5)
         setShowScanSummary(true)
         setTimeout(() => setShowScanSummary(false), 3000)
       }, 1200)
@@ -379,7 +393,7 @@ export default function Chat() {
         ChatStore.appendMessage(chatId, errMsg).catch(err => console.error('appendMessage (scan error) failed:', err))
       }
       setMessages(m => [...m, errMsg])
-      setTimeout(() => { setScanning(false); setShowScanSummary(false) }, 800)
+      setTimeout(() => { setScanning(false); setScanCooldown(5); setShowScanSummary(false) }, 800)
     }
   }
 
@@ -484,12 +498,12 @@ export default function Chat() {
                       <div className="mt-3 flex flex-wrap gap-2">
                         <button
                           onClick={onScanNow}
-                          disabled={!user || scanning}
+                          disabled={!user || scanning || scanCooldown > 0}
                           className={`px-3 py-1.5 rounded-lg text-white text-sm shadow-sm ${
-                            !user ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
+                            !user || scanCooldown > 0 ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
                           }`}
                         >
-                          {user ? 'Scan Now' : 'Sign in to scan'}
+                          {!user ? 'Sign in to scan' : scanCooldown > 0 ? `Scan Now (${scanCooldown}s)` : 'Scan Now'}
                         </button>
                         <button onClick={()=>setExpandPrompt(false)} className="px-3 py-1.5 rounded-lg border border-gray-300 text-gray-700 text-sm bg-white hover:bg-gray-50">
                           Dismiss
@@ -571,7 +585,7 @@ export default function Chat() {
                 onKeyDown={e => {
                   if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault()
-                    onSend()
+                    if (!loading) onSend()
                   }
                 }}
                 placeholder="Ask about treatments, drugs, or guidelines…"
@@ -580,8 +594,8 @@ export default function Chat() {
               />
               <button
                 onClick={onSend}
-                disabled={loading}
-                className={`px-4 py-2 rounded-2xl text-white font-medium ${loading ? 'bg-gray-400 cursor-not-allowed' : 'bg-medical-blue'}`}
+                disabled={loading || !input.trim()}
+                className={`px-4 py-2 rounded-2xl text-white font-medium ${loading || !input.trim() ? 'bg-gray-400 cursor-not-allowed' : 'bg-medical-blue'}`}
               >
                 {loading ? '…' : 'Send'}
               </button>
