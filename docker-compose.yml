@@ -1,23 +1,23 @@
 services:
   backend:
-    build: ./medai-rag-backend
-    container_name: medai-rag-backend
+    build: ./backend
+    container_name: medai-backend
     env_file:
-      - ./medai-rag-backend/.env
+      - ./backend/.env
     ports:
       - "8000:8000"
     volumes:
-      - ./medai-rag-backend/storage:/app/storage
-      - ./medai-rag-backend/data:/app/data
+      - ./backend/storage:/app/storage
+      - ./backend/data:/app/data
   frontend:
     image: node:20
-    container_name: medai-rag-frontend
+    container_name: medai-frontend
     working_dir: /app
     ports:
       - "5173:5173"
     command: bash -lc "npm install && npm install -D @vitejs/plugin-react && npm run dev -- --host 0.0.0.0"
     volumes:
-      - ./medai-rag-frontend:/app
+      - ./frontend:/app
     environment:
       - VITE_API_BASE_URL=http://backend:8000
       - VITE_MOCK_MODE=false

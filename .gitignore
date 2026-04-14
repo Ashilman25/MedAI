@@ -14,6 +14,7 @@ dist/
 .DS_Store
 
 # Cloud + Deployment
+env-vars.json
 # Prevent pushing GCP or Firebase config files
 service-account.json
 firebase-service-account.json
@@ -31,6 +32,12 @@ gcloud.log
 .firebaserc   
 firebase-debug.log*
 firebase-debug.*.log*
+
+# Claude Code
+.claude/
+CLAUDE.md
+.docs
+superpowers/
 
 # Build artifacts
 build/
