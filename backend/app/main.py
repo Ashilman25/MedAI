@@ -1,53 +1,17 @@
-import os
-import re
-import uuid
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, UploadFile, File, Query, Depends, Header, Request
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from typing import List, Optional
-from .config import get_settings
-from .models import AskRequest, AskResponse, IngestResponse
-from .ingest import ingest_paths
-from .rag import answer
-from app.rag import get_embedder, provider_signature
-from app.vectorstore.faiss_store import FaissStore
-from .models import ExpandRequest, ExpandResponse
-from .ingest import fetch_pubmed_docs, ingest_text_items
-from .logging_config import warn
-from fastapi import HTTPException
-import firebase_admin
-from firebase_admin import auth as firebase_auth
-from slowapi import Limiter
-from slowapi.util import get_remote_address
-from slowapi.errors import RateLimitExceeded
 from starlette.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
-from collections import defaultdict
-from datetime import date
-from typing import Dict
+from slowapi.errors import RateLimitExceeded
+from .config import get_settings
+from .logging_config import logger
+from .dependencies import limiter
+from .routers import ask, ingest, expand
 
 MAX_BODY_SIZE = 50 * 1024 * 1024  # 50MB
-MAX_FILE_SIZE = 25 * 1024 * 1024  # 25MB per file
-
-try:
-    firebase_admin.initialize_app()
-except Exception as e:
-    warn(f"Firebase Admin SDK init failed: {e}. Token verification will be unavailable.")
 
 s = get_settings()
-
-
-async def get_current_uid(authorization: str = Header(None)) -> Optional[str]:
-    """Verify Firebase ID token from Authorization: Bearer <token> header."""
-    if not authorization or not authorization.startswith("Bearer "):
-        return None  # guest/anonymous access
-    token = authorization.split("Bearer ", 1)[1]
-    try:
-        decoded = firebase_auth.verify_id_token(token)
-        return decoded["uid"]
-    except Exception:
-        raise HTTPException(status_code=401, detail="Invalid or expired token")
 
 
 @asynccontextmanager
@@ -58,13 +22,15 @@ async def lifespan(app: FastAPI):
             from openai import OpenAI
             client = OpenAI(api_key=s.OPENAI_API_KEY)
             client.models.list()
-            warn("OpenAI API key validated successfully")
+            logger.info("OpenAI API key validated successfully")
         except Exception as e:
-            warn(f"OpenAI API key validation failed: {e}")
+            logger.warning("OpenAI API key validation failed: %s", e)
             raise RuntimeError("Cannot start with invalid OPENAI_API_KEY")
     yield
 
+
 app = FastAPI(title="MedAI‑RAG Backend", version="0.1.0", lifespan=lifespan)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=s.CORS_ORIGINS,
@@ -72,6 +38,7 @@ app.add_middleware(
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization"],
 )
+
 
 class LimitBodySizeMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
@@ -84,22 +51,11 @@ class LimitBodySizeMiddleware(BaseHTTPMiddleware):
                 return JSONResponse(status_code=400, content={"detail": "Invalid Content-Length header"})
         return await call_next(request)
 
+
 app.add_middleware(LimitBodySizeMiddleware)
 
-def _rate_limit_key(request: Request) -> str:
-    """Use authenticated UID if available, fall back to IP."""
-    auth = request.headers.get("authorization", "")
-    if auth.startswith("Bearer "):
-        try:
-            token = auth.split("Bearer ", 1)[1]
-            decoded = firebase_auth.verify_id_token(token)
-            return decoded["uid"]
-        except Exception:
-            pass
-    return get_remote_address(request)
-
-limiter = Limiter(key_func=_rate_limit_key)
 app.state.limiter = limiter
+
 
 @app.exception_handler(RateLimitExceeded)
 async def _rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded):
@@ -110,322 +66,6 @@ async def _rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded)
     )
 
 
-# In-memory per-user daily usage tracker
-_daily_usage: Dict[str, Dict[str, int]] = defaultdict(lambda: {"expand": 0, "ask": 0, "ingest": 0, "date": ""})
-
-DAILY_LIMITS = {
-    "expand": 25,
-    "ask": 200,
-    "ingest": 50,
-}
-
-def check_daily_limit(uid: str, operation: str):
-    today = str(date.today())
-    tracker = _daily_usage[uid or "anonymous"]
-    if tracker["date"] != today:
-        tracker.clear()
-        tracker["date"] = today
-    count = tracker.get(operation, 0)
-    if count >= DAILY_LIMITS.get(operation, 999):
-        raise HTTPException(
-            status_code=429,
-            detail=f"Daily limit reached for {operation}. Try again tomorrow."
-        )
-    tracker[operation] = count + 1
-
-
-def _safe_filename(original: str) -> str:
-    """Sanitize an uploaded filename to prevent path-traversal attacks.
-
-    Strips directory components, replaces unsafe characters, and prepends a
-    short random hex prefix so collisions are nearly impossible.
-    """
-    base = os.path.basename(original)          # strip any directory separators
-    base = re.sub(r'[^\w.\-]', '_', base)      # keep only word chars, dots, hyphens
-    if not base or base in (".", ".."):
-        base = "upload"
-    return f"{uuid.uuid4().hex[:8]}_{base}"
-
-
-def _expand_synonyms(q: str) -> str:
-    """
-    Very small, clinical synonym expander for PubMed terms (safe defaults).
-    You can extend this over time or make it MeSH-aware later.
-    """
-    syn = {
-        "doac": "direct oral anticoagulant",
-        "af": "atrial fibrillation",
-        "htn": "hypertension",
-        "t2dm": "type 2 diabetes",
-        "mi": "myocardial infarction",
-        "nsaid": "nonsteroidal anti-inflammatory drug",
-        "copd": "chronic obstructive pulmonary disease",
-        "pe": "pulmonary embolism",
-        "dvt": "deep vein thrombosis",
-        "uti": "urinary tract infection",
-        "hf": "heart failure",
-    }
-    q_low = q.lower()
-    extra = []
-    for k, v in syn.items():
-        if k in q_low and v not in q_low:
-            extra.append(v)
-    return q if not extra else f"{q} {' '.join(extra)}"
-
-def _normalize_terms(terms: List[str]) -> List[str]:
-    seen, out = set(), []
-    for t in terms or []:
-        tt = (t or "").strip()
-        k = tt.lower()
-        if tt and k not in seen:
-            seen.add(k); out.append(tt)
-    return out
-
-def _query_from_terms(terms: List[str]) -> str:
-    quoted = [f'"{t}"' if " " in t else t for t in terms]
-    return " OR ".join(quoted)
-
-_INTENT_EXPANSIONS = {
-    "dosing_safety": ["adverse effects", "side effects", "complications"],
-    "diagnosis": ["diagnosis", "screening", "criteria"],
-    "therapy": ["therapy", "management", "treatment"],
-    "prognosis": ["prognosis", "outcomes", "mortality"],
-    "epidemiology": ["incidence", "prevalence", "epidemiology"],
-    "general": [],
-}
-
-
-
-def _default_types_for_pass(pass_idx: int) -> list[str]:
-    # Tight to broad
-    if pass_idx == 1:
-        return ["Guideline", "Practice Guideline", "Systematic Review", "Review"]
-    if pass_idx == 2:
-        return ["Systematic Review", "Meta-Analysis", "Review", "Guideline"]
-    # Final pass: go broad (no filter)
-    return []
-
-@app.get("/health")
-def health(): return {"ok": True}
-
-@app.post("/ask", response_model=AskResponse)
-@limiter.limit("20/minute")
-def ask(request: Request, req: AskRequest, uid: Optional[str] = Depends(get_current_uid)):
-    check_daily_limit(uid, "ask")
-    return AskResponse(**answer(req.query, req.top_k))
-
-@app.post("/ingest", response_model=IngestResponse)
-@limiter.limit("10/minute")
-async def ingest(request: Request, files: List[UploadFile] = File(...), uid: Optional[str] = Depends(get_current_uid)):
-    
-    if not uid:
-        raise HTTPException(status_code=401, detail="Sign-in required")
-    check_daily_limit(uid, "ingest")
-    upload_dir = os.path.join(s.STORAGE_DIR, "_uploads"); os.makedirs(upload_dir, exist_ok=True)
-    upload_real = os.path.realpath(upload_dir)
-    paths = []
-    for f in files:
-        safe_name = _safe_filename(f.filename or "upload")
-        dest = os.path.join(upload_dir, safe_name)
-        # Guard: resolved path must stay inside upload_dir
-        if not os.path.realpath(dest).startswith(upload_real + os.sep):
-            raise HTTPException(status_code=400, detail=f"Invalid filename: {f.filename!r}")
-        content = await f.read()
-        if len(content) > MAX_FILE_SIZE:
-            raise HTTPException(status_code=413, detail=f"File '{f.filename}' exceeds 25MB limit")
-        with open(dest, "wb") as out:
-            out.write(content)
-        paths.append(dest)
-    res = ingest_paths(paths, owner_uid=uid)
-    return IngestResponse(**res)
-
-
-@app.get("/documents")
-@limiter.limit("60/minute")
-def list_docs(request: Request, uid: Optional[str] = Depends(get_current_uid)):
-    """
-    List documents indexed.
-
-    - If uid provided: return docs owned by uid OR global docs (no owner_uids).
-    - If uid not provided: return only global docs.
-    """
-    s = get_settings()
-    embedder = get_embedder()
-    store = FaissStore(s.STORAGE_DIR, embedder.dim, provider_signature(embedder))
-
-    try:
-        docs = []
-        for md in getattr(store, "_meta", []):
-            owners = md.get("owner_uids") or []
-            if isinstance(owners, str):
-                owners = [owners]
-                
-            if uid:
-                # Include global (no owners) OR owned-by-uid
-                if owners and uid not in owners:
-                    continue
-            else:
-                # Guest sees only global
-                if owners:
-                    continue
-                
-            scope = "global" if not owners else ("mine" if (uid and uid in owners) else "private")
-
-
-            docs.append({
-                "title": md.get("title"),
-                "url": md.get("url"),
-                "source": md.get("source", "unknown"),
-                "pmid": md.get("pmid", None),
-                "journal": md.get("journal", None),
-                "year": md.get("year", None),
-                "snippet": (md.get("snippet", "") or "")[:180],
-                "owner_scope": scope,
-            })
-        return {"count": len(docs), "docs": docs}
-    except Exception as e:
-        return {"error": str(e)}
-
-
-
-@app.post("/expand-sources", response_model=ExpandResponse)
-@limiter.limit("5/minute")
-def expand_sources(request: Request, req: ExpandRequest, uid: Optional[str] = Depends(get_current_uid)):
-    """
-    Wide/iterative expansion with PubMed, ingest, re-answer.
-    Supports either a raw query (legacy) or structured query_terms + intent.
-    """
-    check_daily_limit(uid, "expand")
-    # env defaults
-    env_types = [t.strip() for t in os.getenv("PUBMED_FILTER_TYPES", "Guideline,Review").split(",") if t.strip()]
-    lang = req.lang or os.getenv("PUBMED_LANG", "en")
-    base_mindate = req.mindate if req.mindate is not None else (int(os.getenv("PUBMED_MINDATE", "0")) or None)
-    target_conf = req.target_confidence
-    max_passes = req.max_passes
-    per_pass_retmax = req.per_pass_retmax
-
-    # Build base query
-    used_terms = False
-    if req.query_terms and len(req.query_terms) > 0:
-        terms = _normalize_terms(req.query_terms)
-        base_query = _query_from_terms(terms)
-        used_terms = True
-    else:
-        base_query = _expand_synonyms(req.query or "")
-
-    # Intent (optional)
-    intent = (req.intent or "general").strip().lower()
-    if intent not in _INTENT_EXPANSIONS:
-        intent = "general"
-
-    total_found = total_added = total_skipped = 0
-    last_answer = None
-    passes_done = 0
-
-    for passes_done in range(1, max_passes + 1):
-        # pass-specific types
-        if req.types and passes_done == 1:
-            types = req.types
-        else:
-            types = _default_types_for_pass(passes_done)
-
-        # widen date on later passes
-        if passes_done == 1:
-            mindate = base_mindate
-        elif passes_done == 2:
-            mindate = base_mindate or 2015
-        else:
-            mindate = min(req.fallback_mindate, (base_mindate or req.fallback_mindate))
-
-        # build pass query
-        q = base_query
-        if passes_done == 2:
-            # add 1–2 intent-specific words if not already present
-            extras = [w for w in _INTENT_EXPANSIONS.get(intent, []) if w.lower() not in q.lower()]
-            if extras:
-                q = f"({q}) OR ({' OR '.join(extras)})"
-        if passes_done >= 3:
-            # gentle broadening: ensure at least one generic category token present
-            cat = _INTENT_EXPANSIONS.get(intent, [])
-            if cat:
-                token = cat[0]
-                if token.lower() not in q.lower():
-                    q = f"({q}) OR {token}"
-
-        retmax = per_pass_retmax * (1 if passes_done == 1 else 2 if passes_done == 2 else 3)
-
-        # 1) fetch
-        pm_docs = fetch_pubmed_docs(
-            query=q,
-            retmax=retmax,
-            mindate=mindate,
-            maxdate=None,
-            lang=lang,
-            filter_types=types or None,
-        )
-        found = len(pm_docs)
-
-        # 2) ingest (dedup by pmid), tag owner
-        stats = ingest_text_items(pm_docs, owner_uid=uid)
-        added = stats.get("added", 0)
-        skipped = stats.get("skipped", 0)
-        total_found += found
-        total_added += added
-        total_skipped += skipped
-
-        # 3) re-answer
-        last = answer(req.query or " ".join(req.query_terms or []), req.top_k)
-        last_answer = last
-
-        # early exit
-        if (last["confidence"] >= target_conf) or (found == 0 and added == 0) or not req.wide:
-            break
-
-    if not last_answer:
-        last_answer = answer(req.query or " ".join(req.query_terms or []), req.top_k)
-
-    # telemetry
-    try:
-        print({
-            "event": "expand_sources",
-            "used_terms": used_terms,
-            "intent": intent,
-            "found": total_found,
-            "added": total_added,
-            "skipped": total_skipped,
-            "passes": passes_done,
-            "conf": float(last_answer.get("confidence", 0.0)),
-        })
-    except Exception:
-        pass
-
-    return ExpandResponse(
-        answer=last_answer["answer"],
-        citations=last_answer["citations"],
-        confidence=last_answer["confidence"],
-        found=total_found,
-        added=total_added,
-        skipped=total_skipped,
-        passes=passes_done,
-    )
-
-
-class SuggestTermsReq(BaseModel):
-    message: str
-
-class SuggestTermsResp(BaseModel):
-    terms: List[str]
-    intent: str
-    method: str  # "heuristic" | "llm"
-
-@app.post("/suggest-terms", response_model=SuggestTermsResp)
-@limiter.limit("20/minute")
-def suggest_terms(request: Request, req: SuggestTermsReq, uid: Optional[str] = Depends(get_current_uid)):
-    check_daily_limit(uid, "ask")
-    from .query_suggest import extract_terms_and_intent
-    terms, intent, method = extract_terms_and_intent(req.message)
-    try:
-        print({"event": "suggest_terms", "len_msg": len(req.message or ""), "terms": terms, "intent": intent, "method": method})
-    except Exception:
-        pass
-    return SuggestTermsResp(terms=terms, intent=intent, method=method)
+app.include_router(ask.router)
+app.include_router(ingest.router)
+app.include_router(expand.router)

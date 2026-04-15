@@ -46,3 +46,11 @@ class ExpandResponse(BaseModel):
     added: int = 0      # chunks embedded & added to store
     skipped: int = 0
     passes: int = 0     # how many passes executed
+
+class SuggestTermsReq(BaseModel):
+    message: str
+
+class SuggestTermsResp(BaseModel):
+    terms: List[str]
+    intent: str
+    method: str  # "heuristic" | "llm"

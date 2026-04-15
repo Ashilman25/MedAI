@@ -1,18 +1,21 @@
 import json
 import time
 import numpy as np
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import List, Dict, Any, Tuple, Optional
 from .config import get_settings
-from .logging_config import warn
+from .logging_config import logger
 from .vectorstore.faiss_store import FaissStore
 
 @dataclass
-class Embedder:
+class Embedder(ABC):
     name: str
     provider: str
     dim: int
-    _model: any = None
+    _model: Any = None
+
+    @abstractmethod
     def encode(self, texts: List[str]) -> np.ndarray: ...
 
 def _sentence_embedder(model_name: str) -> Embedder:
@@ -44,14 +47,32 @@ def _openai_embedder(model_name: str) -> Embedder:
             return np.array(vecs, dtype="float32")
     return _E(name=model_name, provider="openai", dim=dim, _model=client)
 
+_embedder_cache: Optional[Embedder] = None
+
 def get_embedder() -> Embedder:
+    global _embedder_cache
+    if _embedder_cache is not None:
+        return _embedder_cache
     s = get_settings()
     if s.EMBEDDING_PROVIDER == "openai":
-        return _openai_embedder(s.OPENAI_EMBEDDING_MODEL)
-    return _sentence_embedder(s.LOCAL_EMBEDDING_MODEL)
+        _embedder_cache = _openai_embedder(s.OPENAI_EMBEDDING_MODEL)
+    else:
+        _embedder_cache = _sentence_embedder(s.LOCAL_EMBEDDING_MODEL)
+    return _embedder_cache
 
 def provider_signature(e: Embedder) -> str:
     return f"{e.provider}:{e.name}:{e.dim}"
+
+_store_cache: Optional[FaissStore] = None
+
+def get_store() -> FaissStore:
+    global _store_cache
+    if _store_cache is not None:
+        return _store_cache
+    s = get_settings()
+    e = get_embedder()
+    _store_cache = FaissStore(s.STORAGE_DIR, e.dim, provider_signature(e))
+    return _store_cache
 
 def _mock_generate(prompt: str) -> str:
     return ("• Summary: concise evidence-based points aligned to retrieved sources.\n"
@@ -71,10 +92,10 @@ def _openai_generate(system: str, user: str) -> str:
         )
         usage = out.usage
         if usage:
-            warn(f"OpenAI call: model={s.OPENAI_MODEL} prompt_tokens={usage.prompt_tokens} completion_tokens={usage.completion_tokens}")
+            logger.info("OpenAI call: model=%s prompt_tokens=%s completion_tokens=%s", s.OPENAI_MODEL, usage.prompt_tokens, usage.completion_tokens)
         return out.choices[0].message.content.strip()
     except Exception as e:
-        warn(f"OpenAI generation error: {e}\n{traceback.format_exc()}")
+        logger.error("OpenAI generation error: %s\n%s", e, traceback.format_exc())
         raise
 
 # ------------------------
@@ -83,9 +104,9 @@ def _openai_generate(system: str, user: str) -> str:
 
 def retrieve(query: str, top_k: int) -> Tuple[List[Tuple[float, Dict[str, Any]]], float]:
     e = get_embedder()
-    store = FaissStore(get_settings().STORAGE_DIR, e.dim, provider_signature(e))
+    store = get_store()
     if store.size() == 0:
-        warn("Vector store is empty. Ingest documents first.")
+        logger.warning("Vector store is empty. Ingest documents first.")
         return [], 0.0
     qv = e.encode([query])[0]
     hits = store.search(qv, top_k=top_k)
@@ -327,7 +348,7 @@ def _score_with_llm(query: str, answer_text: str, hits: List[Tuple[float, Dict[s
 
     # If we're in MOCK mode or have no API key, provide a deterministic heuristic fallback.
     if s.MOCK_COMPLETIONS or not getattr(s, "OPENAI_API_KEY", None):
-        warn("Scorer running in fallback mode (mock or no OPENAI_API_KEY).")
+        logger.warning("Scorer running in fallback mode (mock or no OPENAI_API_KEY).")
         return _heuristic_metrics(hits)
 
     payload = _build_scorer_payload(query, answer_text, hits)
@@ -335,7 +356,7 @@ def _score_with_llm(query: str, answer_text: str, hits: List[Tuple[float, Dict[s
     try:
         raw = _openai_generate(_SCORER_SYSTEM, user_json)
     except Exception as e:
-        warn(f"Scorer LLM call failed: {e}")
+        logger.warning("Scorer LLM call failed: %s", e)
         return _heuristic_metrics(hits)
 
     try:
@@ -345,7 +366,7 @@ def _score_with_llm(query: str, answer_text: str, hits: List[Tuple[float, Dict[s
             raise ValueError("Scorer output missing required keys")
         return data
     except Exception as e:
-        warn(f"Scorer JSON parse failed, using heuristic fallback. Error: {e}")
+        logger.warning("Scorer JSON parse failed, using heuristic fallback. Error: %s", e)
         return _heuristic_metrics(hits)
 
 def _heuristic_metrics(hits: List[Tuple[float, Dict[str, Any]]]) -> Dict[str, Any]:
@@ -417,7 +438,7 @@ def answer(query: str, top_k: int = 5) -> Dict[str, Any]:
         try:
             text = _openai_generate(system, user)
         except Exception as e:
-            warn(f"LLM generation failed: {e}")
+            logger.error("LLM generation failed: %s", e)
             text = "⚠ Unable to generate answer — LLM service unavailable. Please try again later."
 
     # 3) Score confidence with v1.1 scorer (LLM JSON) with safe fallback
