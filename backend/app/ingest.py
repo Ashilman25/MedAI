@@ -3,12 +3,13 @@ import os, csv, argparse, json, time
 from typing import List, Dict, Any, Tuple, Optional
 import hashlib
 
+from tenacity import retry, stop_after_attempt, wait_exponential
+
 from .config import get_settings
-from .logging_config import info, warn
+from .logging_config import logger
 from .utils.text import clean_text, chunk_text
 from .utils.pdf import extract_pdf_text
-from .vectorstore.faiss_store import FaissStore
-from .rag import get_embedder, provider_signature
+from .rag import get_embedder, provider_signature, get_store
 
 
 # ----------------------------
@@ -27,7 +28,7 @@ def read_file_text(path: str) -> str:
             r = csv.reader(f)
             out.extend(" | ".join(row) for row in r)
         return "\n".join(out)
-    warn(f"Unsupported file type: {ext}. Skipping {path}")
+    logger.warning("Unsupported file type: %s. Skipping %s", ext, path)
     return ""
 
 
@@ -35,9 +36,8 @@ def _content_hash(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8", errors="ignore")).hexdigest()
 
 def ingest_paths(paths: List[str], owner_uid: Optional[str] = None) -> Dict[str, Any]:
-    s = get_settings()
     embedder = get_embedder()
-    store = FaissStore(s.STORAGE_DIR, embedder.dim, provider_signature(embedder))
+    store = get_store()
 
     added = 0
     skipped = 0
@@ -63,7 +63,7 @@ def ingest_paths(paths: List[str], owner_uid: Optional[str] = None) -> Dict[str,
 
     for p in paths:
         if not os.path.exists(p):
-            warn(f"Missing: {p}")
+            logger.warning("Missing: %s", p)
             skipped += 1
             continue
 
@@ -121,8 +121,9 @@ def ingest_paths(paths: List[str], owner_uid: Optional[str] = None) -> Dict[str,
         added += len(chunks)
         existing_hashes.add(chash)
 
-    info(
-        f"Ingested (local): added={added}, skipped={skipped}, total={FaissStore(s.STORAGE_DIR, embedder.dim, provider_signature(embedder)).size()}"
+    logger.info(
+        "Ingested (local): added=%d, skipped=%d, total=%d",
+        added, skipped, get_store().size(),
     )
     return {"ok": True, "added": added, "skipped": skipped}
 
@@ -211,6 +212,30 @@ def build_pubmed_term(query: str, lang: Optional[str], filter_types: Optional[Li
     return term
 
 
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=10))
+def _entrez_search(term: str, retmax: int, **kwargs):
+    """Retry-wrapped Entrez.esearch with guaranteed handle cleanup."""
+    from Bio import Entrez
+    handle = Entrez.esearch(db="pubmed", term=term, retmax=retmax, **kwargs)
+    try:
+        record = Entrez.read(handle)
+    finally:
+        handle.close()
+    return record
+
+
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=10))
+def _entrez_fetch(ids: List[str]):
+    """Retry-wrapped Entrez.efetch with guaranteed handle cleanup."""
+    from Bio import Entrez
+    handle = Entrez.efetch(db="pubmed", id=",".join(ids), rettype="abstract", retmode="xml")
+    try:
+        fetched = Entrez.read(handle)
+    finally:
+        handle.close()
+    return fetched
+
+
 def fetch_pubmed_docs(
     query: str,
     retmax: int = 50,
@@ -228,7 +253,7 @@ def fetch_pubmed_docs(
 
     email = os.getenv("PUBMED_EMAIL") or os.getenv("NCBI_EMAIL")
     if not email:
-        warn("PUBMED_EMAIL not set; NCBI recommends providing a contact email.")
+        logger.warning("PUBMED_EMAIL not set; NCBI recommends providing a contact email.")
     Entrez.email = email or "anonymous@example.com"
     api_key = os.getenv("NCBI_API_KEY")
     if api_key:
@@ -240,11 +265,13 @@ def fetch_pubmed_docs(
         pass
 
     term = build_pubmed_term(query, lang, filter_types, mindate, maxdate)
-    info(f"PubMed search term: {term}")
+    logger.info("PubMed search term: %s", term)
+
+    # Rate limit: 0.11s with API key (10 req/sec), 0.35s without (3 req/sec)
+    sleep_interval = 0.11 if api_key else 0.35
 
     # 1) Search
-    handle = Entrez.esearch(
-        db="pubmed",
+    record = _entrez_search(
         term=term,
         retmax=retmax,
         datetype="pdat" if (mindate or maxdate) else None,
@@ -253,20 +280,15 @@ def fetch_pubmed_docs(
         usehistory="n",
         retmode="xml",
     )
-    record = Entrez.read(handle)
     ids = record.get("IdList", [])
-    handle.close()
-    time.sleep(0.35)
-
+    time.sleep(sleep_interval)
 
     if not ids:
-        info("No PubMed IDs returned for this query.")
+        logger.info("No PubMed IDs returned for this query.")
         return []
 
     # 2) Fetch details (XML)
-    handle = Entrez.efetch(db="pubmed", id=",".join(ids), rettype="abstract", retmode="xml")
-    fetched = Entrez.read(handle)
-    handle.close()
+    fetched = _entrez_fetch(ids)
 
     out_docs = []
     for article in fetched.get("PubmedArticle", []):
@@ -294,10 +316,10 @@ def fetch_pubmed_docs(
                 }
             )
         except Exception as e:
-            warn(f"Failed to parse a PubMed record: {e}")
+            logger.warning("Failed to parse a PubMed record: %s", e)
             continue
 
-    info(f"Fetched PubMed articles: {len(out_docs)}")
+    logger.info("Fetched PubMed articles: %d", len(out_docs))
     return out_docs
 
 
@@ -313,9 +335,8 @@ def ingest_text_items(items: List[Dict[str, Any]], owner_uid: Optional[str] = No
     if not items:
         return {"ok": True, "added": 0, "skipped": 0}
 
-    s = get_settings()
-    embedder = get_embedder()  
-    store = FaissStore(s.STORAGE_DIR, embedder.dim, provider_signature(embedder))
+    embedder = get_embedder()
+    store = get_store()
 
     # - If owner_uid is provided: dedupe against PMIDs already owned by this user.
     # - If owner_uid is None (global): dedupe against PMIDs that are global (no owner_uids).
@@ -402,7 +423,7 @@ def ingest_text_items(items: List[Dict[str, Any]], owner_uid: Optional[str] = No
 
 
     
-    info(f"Ingested (text items): added={added}, skipped={skipped}, total={store.size()}")
+    logger.info("Ingested (text items): added=%d, skipped=%d, total=%d", added, skipped, store.size())
 
     return {"ok": True, "added": added, "skipped": skipped}
 
@@ -486,13 +507,13 @@ def main():
             total_skipped += res_pm.get("skipped", 0)
         except Exception as e:
             ok = False
-            warn(f"PubMed ingestion failed: {e}")
+            logger.warning("PubMed ingestion failed: %s", e)
 
     if not args.path and not args.pubmed:
-        warn("Nothing to ingest. Provide --path and/or --pubmed.")
+        logger.warning("Nothing to ingest. Provide --path and/or --pubmed.")
         ok = False
 
-    print(json.dumps({"ok": ok, "added": total_added, "skipped": total_skipped}, indent=2))
+    logger.info(json.dumps({"ok": ok, "added": total_added, "skipped": total_skipped}))
 
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 import os, json, time
 from typing import List, Tuple, Dict, Any
 import numpy as np
-from ..logging_config import warn
+from ..logging_config import logger
 from contextlib import contextmanager
 
 try:
@@ -9,7 +9,7 @@ try:
     HAVE_FAISS = True
 except Exception:
     HAVE_FAISS = False
-    warn("FAISS not available; falling back to NumPy search (slower).")
+    logger.warning("FAISS not available; falling back to NumPy search (slower).")
 
 try:
     import fcntl  # POSIX file locking
@@ -104,7 +104,7 @@ class FaissStore:
                         )
                     self.dim = int(cfg["dim"])
                 except Exception as e:
-                    warn(f"Failed to read store_config.json ({e}); starting fresh config.")
+                    logger.warning("Failed to read store_config.json (%s); starting fresh config.", e)
                     self._save_config()
             else:
                 self._save_config()
@@ -115,7 +115,7 @@ class FaissStore:
                     with open(self.meta_path, "r", encoding="utf-8") as f:
                         self._meta = json.load(f)
                 except Exception as e:
-                    warn(f"Failed to read meta.json ({e}); quarantining and starting fresh.")
+                    logger.warning("Failed to read meta.json (%s); quarantining and starting fresh.", e)
                     try:
                         os.replace(self.meta_path, self.meta_path + f".corrupt.{int(time.time())}")
                     except Exception:
@@ -130,7 +130,7 @@ class FaissStore:
                     try:
                         self._index = faiss.read_index(self.index_path)
                     except Exception as e:
-                        warn(f"Failed to read FAISS index ({e}); quarantining and starting new index.")
+                        logger.warning("Failed to read FAISS index (%s); quarantining and starting new index.", e)
                         try:
                             os.replace(self.index_path, self.index_path + f".corrupt.{int(time.time())}")
                         except Exception:
@@ -144,7 +144,7 @@ class FaissStore:
                     try:
                         self._vectors = np.load(self.npy_path)
                     except Exception as e:
-                        warn(f"Failed to read vectors.npy ({e}); starting fresh.")
+                        logger.warning("Failed to read vectors.npy (%s); starting fresh.", e)
                         self._vectors = np.empty((0, self.dim), dtype="float32")
                 else:
                     self._vectors = np.empty((0, self.dim), dtype="float32")
