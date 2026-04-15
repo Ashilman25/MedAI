@@ -225,6 +225,10 @@ export default function Chat() {
   async function onSend() {
     const q = input.trim()
     if (!q) return
+    if (q.length > 5000) {
+      setMessages(m => [...m, { role: 'assistant', content: 'Your message is too long (max 5,000 characters). Please shorten it and try again.', createdAt: Date.now() }])
+      return
+    }
 
     // clear input + shrink textarea
     setInput('')
@@ -380,20 +384,18 @@ export default function Chat() {
       setMessages(m => [...m, { ...aiMsg }])
       setLastAnswer(resp)
       setHistoryKey(k => k + 1)
-
-      setTimeout(() => {
-        setScanning(false)
-        setScanCooldown(5)
-        setShowScanSummary(true)
-        setTimeout(() => setShowScanSummary(false), 3000)
-      }, 1200)
+      setShowScanSummary(true)
+      setTimeout(() => setShowScanSummary(false), 3000)
     } catch (e) {
       const errMsg = { role:'assistant', content:`Source expansion failed: ${e.message}`, createdAt: Date.now() }
       if (chatId) {
         ChatStore.appendMessage(chatId, errMsg).catch(err => console.error('appendMessage (scan error) failed:', err))
       }
       setMessages(m => [...m, errMsg])
-      setTimeout(() => { setScanning(false); setScanCooldown(5); setShowScanSummary(false) }, 800)
+    } finally {
+      setScanning(false)
+      setScanStep(0)
+      setScanCooldown(5)
     }
   }
 

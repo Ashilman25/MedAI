@@ -23,7 +23,7 @@ function getTitleFromMessages(messages) {
 }
 
 export function ExportView({ chatId, title, messages }) {
-  const exportedAt = new Date().toLocaleString('en-US', { timeZone: 'America/Detroit' });
+  const exportedAt = new Date().toLocaleString('en-US');
   const safeTitle = title || getTitleFromMessages(messages || []);
 
   // Build consolidated reference index + per-message mapping
@@ -82,7 +82,7 @@ export function ExportView({ chatId, title, messages }) {
               <span className="who">{m.role === 'user' ? 'User' : 'Assistant'}</span>
               {m.createdAt && (
                 <time>
-                  {new Date(m.createdAt).toLocaleString('en-US', { timeZone: 'America/Detroit' })}
+                  {new Date(m.createdAt).toLocaleString('en-US')}
                 </time>
               )}
               {m.role === 'assistant' && typeof m.confidence === 'number' && (

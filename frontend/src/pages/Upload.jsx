@@ -8,8 +8,15 @@ export default function Upload() {
   const [status, setStatus] = useState('idle')
   const [message, setMessage] = useState('')
 
+  const MAX_FILE_SIZE = 25 * 1024 * 1024 // 25MB
+
   async function onUpload() {
     if (!file) return
+    if (file.size > MAX_FILE_SIZE) {
+      setStatus('error')
+      setMessage('❌ File too large (max 25MB)')
+      return
+    }
     setStatus('uploading')
     setMessage('')
 
