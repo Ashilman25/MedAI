@@ -1,8 +1,8 @@
 import { getAuth } from 'firebase/auth';
+import { DEFAULT_TOP_K, CONFIDENCE_THRESHOLD } from './constants'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || ''
 const MOCK = (import.meta.env.VITE_MOCK_MODE ?? 'true') === 'true'
-const DEFAULT_TOP_K = Number(import.meta.env.VITE_DEFAULT_TOP_K ?? 5)
 
 async function authHeaders() {
     const user = getAuth().currentUser;
@@ -70,11 +70,9 @@ async function fetchWithRetry(url, options, retries = 3) {
 export async function expandSources(query, options = {}) {
   const body = {
     query, 
-    top_k: options.top_k ?? Number(import.meta.env.VITE_DEFAULT_TOP_K ?? 5),
+    top_k: options.top_k ?? DEFAULT_TOP_K,
     wide: options.wide ?? true,
-    target_confidence:
-      options.target_confidence ??
-      Number(import.meta.env.VITE_CONFIDENCE_THRESHOLD ?? 0.62),
+    target_confidence: options.target_confidence ?? CONFIDENCE_THRESHOLD,
     max_passes: options.max_passes ?? 3,
     per_pass_retmax: options.per_pass_retmax ?? 60,
     mindate: options.mindate ?? 2018,

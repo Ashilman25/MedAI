@@ -6,7 +6,7 @@ import Logo from '../assets/logo.svg'
 import PreviewWindow from '../components/Landing/PreviewWindow'
 
 export default function Landing() {
-  const nav = useNavigate()
+  const navigate = useNavigate()
   const { user } = useAuth()
 
   return (
@@ -23,10 +23,10 @@ export default function Landing() {
         {/* Hide CTAs when signed in */}
         {!user && (
           <div className="flex gap-3">
-            <button onClick={()=>nav('/chat')} className="px-5 py-3 rounded-2xl bg-medical-blue text-white font-medium">
+            <button onClick={()=>navigate('/chat')} className="px-5 py-3 rounded-2xl bg-medical-blue text-white font-medium">
               Continue as Guest
             </button>
-            <button onClick={()=>nav('/signin')} className="px-5 py-3 rounded-2xl border border-gray-300 bg-white font-medium">
+            <button onClick={()=>navigate('/signin')} className="px-5 py-3 rounded-2xl border border-gray-300 bg-white font-medium">
               Sign in
             </button>
           </div>

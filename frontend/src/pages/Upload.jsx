@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { ingest } from '../lib/api'
+import { MAX_FILE_SIZE } from '../lib/constants'
 import { useAuth } from '../context/AuthContext'
 
 export default function Upload() {
@@ -7,8 +8,6 @@ export default function Upload() {
   const [file, setFile] = useState(null)
   const [status, setStatus] = useState('idle')
   const [message, setMessage] = useState('')
-
-  const MAX_FILE_SIZE = 25 * 1024 * 1024 // 25MB
 
   async function onUpload() {
     if (!file) return

@@ -6,11 +6,11 @@ import { useAuth } from './context/AuthContext'
 export default function App() {
   const { pathname } = useLocation()
   const { user, signOut } = useAuth()
-  const nav = useNavigate()
+  const navigate = useNavigate()
 
   async function handleSignOut() {
     await signOut()
-    nav('/')
+    navigate('/')
   }
 
   return (

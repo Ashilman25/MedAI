@@ -1,7 +1,7 @@
 // src/components/Sources/ConfidenceBar.jsx
 import React from "react";
 
-export default function ConfidenceBar({
+function ConfidenceBar({
   value = 0,
   labelSuffix = null,
 }) {
@@ -50,3 +50,4 @@ export default function ConfidenceBar({
     </div>
   );
 }
+export default React.memo(ConfidenceBar);

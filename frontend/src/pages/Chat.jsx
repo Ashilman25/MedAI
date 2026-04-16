@@ -5,6 +5,7 @@ import SourceList from '../components/Sources/SourceList'
 import ConfidenceBar from '../components/Sources/ConfidenceBar'
 import HistoryPanel from '../components/Chat/HistoryPanel'
 import { ask, expandSources, suggestTerms } from '../lib/api'
+import { CONFIDENCE_THRESHOLD, SHOW_SCAN_TERMS, MAX_QUERY_LENGTH, DEFAULT_TOP_K } from '../lib/constants'
 import { exportToPDF } from '../lib/export'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '../context/AuthContext'
@@ -85,7 +86,6 @@ export default function Chat() {
   const [lastQuery, setLastQuery] = useState('')
   const [expandPrompt, setExpandPrompt] = useState(false)
   const [scanTerms, setScanTerms] = useState(null);
-  const SHOW_SCAN_TERMS = (import.meta.env.VITE_SHOW_SCAN_TERMS ?? 'true') === 'true'
 
   // scanning UX states
   const [scanCooldown, setScanCooldown] = useState(0)
@@ -99,7 +99,7 @@ export default function Chat() {
   const [showClearModal, setShowClearModal] = useState(false)
   const [dontAskAgain, setDontAskAgain] = useState(false)
 
-  const CONF_T = Number(import.meta.env.VITE_CONFIDENCE_THRESHOLD ?? 0.55)
+  const CONF_T = CONFIDENCE_THRESHOLD
   const { user } = useAuth()
 
   const textareaRef = useRef(null);
@@ -225,7 +225,7 @@ export default function Chat() {
   async function onSend() {
     const q = input.trim()
     if (!q) return
-    if (q.length > 5000) {
+    if (q.length > MAX_QUERY_LENGTH) {
       setMessages(m => [...m, { role: 'assistant', content: 'Your message is too long (max 5,000 characters). Please shorten it and try again.', createdAt: Date.now() }])
       return
     }
@@ -356,14 +356,14 @@ export default function Chat() {
     try {
       const resp = await expandSources(lastQuery, {
         wide: true,
-        target_confidence: Number(import.meta.env.VITE_CONFIDENCE_THRESHOLD ?? 0.62),
+        target_confidence: CONFIDENCE_THRESHOLD,
         max_passes: 3,
         per_pass_retmax: 60,
         mindate: 2018,
         fallback_mindate: 2010,
         lang: 'en',
         types: ['Guideline','Practice Guideline','Systematic Review','Review'],
-        top_k: Number(import.meta.env.VITE_DEFAULT_TOP_K ?? 5),
+        top_k: DEFAULT_TOP_K,
         ...(terms?.length ? { query_terms: terms, intent } : {})
       })
 

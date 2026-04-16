@@ -9,17 +9,17 @@ export default function SignUp() {
   const { signUp } = useAuth();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [pw, setPw] = useState("");
+  const [password, setPassword] = useState("");
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
-  const nav = useNavigate();
+  const navigate = useNavigate();
 
   async function handleSubmit(e) {
     e.preventDefault();
     setErr(""); setLoading(true);
     try {
-      await signUp(email, pw, name);
-      nav("/chat");
+      await signUp(email, password, name);
+      navigate("/chat");
     } catch (e) {
       setErr(e.message || "Failed to sign up");
     } finally {
@@ -49,8 +49,8 @@ export default function SignUp() {
             value={email} onChange={(e)=>setEmail(e.target.value)}
           />
           <PasswordField
-            value={pw}
-            onChange={(e)=>setPw(e.target.value)}
+            value={password}
+            onChange={(e)=>setPassword(e.target.value)}
             placeholder="Password (min 6 chars)"
           />
 

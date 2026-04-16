@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { useAuth } from "../../context/AuthContext";
 import { expandSources, listDocuments } from "../../lib/api";
+import { CONFIDENCE_THRESHOLD, DEFAULT_TOP_K } from "../../lib/constants";
 import { saveSourceSet } from "../../lib/db";
 
 const PUB_TYPES = [
@@ -161,16 +162,12 @@ export default function AddSourcesModal({ open, onClose, onComplete }) {
   const [lang, setLang] = useState("en");
   const [types, setTypes] = useState(() => new Set(PUB_TYPES.slice(0, 4))); // default: 4 checked
 
-  const [targetConfidence, setTargetConfidence] = useState(
-    Number(import.meta.env.VITE_CONFIDENCE_THRESHOLD ?? 0.62)
-  );
+  const [targetConfidence, setTargetConfidence] = useState(CONFIDENCE_THRESHOLD);
   const [maxPasses, setMaxPasses] = useState(3);
   const [perPassRetmax, setPerPassRetmax] = useState(
     Number(import.meta.env.VITE_PER_PASS_RETMAX ?? 60)
   );
-  const [topK, setTopK] = useState(
-    Number(import.meta.env.VITE_DEFAULT_TOP_K ?? 5)
-  );
+  const [topK, setTopK] = useState(DEFAULT_TOP_K);
 
   const [concurrency, setConcurrency] = useState(1); // nice-to-have
   const [saveSet, setSaveSet] = useState(false); // nice-to-have

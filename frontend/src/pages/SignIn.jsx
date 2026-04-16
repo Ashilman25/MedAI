@@ -23,11 +23,11 @@ export const Error = (props) => (
 export default function SignIn() {
   const { signIn, resetPassword } = useAuth();
   const [email, setEmail] = useState("");
-  const [pw, setPw] = useState("");
+  const [password, setPassword] = useState("");
   const [err, setErr] = useState("");
   const [notice, setNotice] = useState("");
   const [loading, setLoading] = useState(false);
-  const nav = useNavigate();
+  const navigate = useNavigate();
   const location = useLocation();
   const from = location.state?.from?.pathname || "/chat";
 
@@ -35,25 +35,14 @@ export default function SignIn() {
     e.preventDefault();
     setErr(""); setNotice(""); setLoading(true);
     try {
-      await signIn(email, pw);
-      nav(from, { replace: true });
+      await signIn(email, password);
+      navigate(from, { replace: true });
     } catch (e) {
       setErr(e.message || "Failed to sign in");
     } finally {
       setLoading(false);
     }
   }
-
-  // async function handleForgot() {
-  //   setErr(""); setNotice("");
-  //   if (!email) { setErr("Enter your email first to receive a reset link."); return; }
-  //   try {
-  //     await resetPassword(email);
-  //     setNotice("Password reset email sent. Check your inbox.");
-  //   } catch (e) {
-  //     setErr(e.message || "Could not send reset email");
-  //   }
-  // }
 
   return (
     <div className="flex min-h-[70vh] items-center justify-center px-4">
@@ -73,8 +62,8 @@ export default function SignIn() {
           />
 
           <PasswordField
-            value={pw}
-            onChange={(e)=>setPw(e.target.value)}
+            value={password}
+            onChange={(e)=>setPassword(e.target.value)}
             placeholder="Password"
           />
 

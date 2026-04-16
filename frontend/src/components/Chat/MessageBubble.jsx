@@ -1,5 +1,5 @@
 import React from 'react'
-export default function MessageBubble({ role, content, children }) {
+function MessageBubble({ role, content, children }) {
   const mine = role === 'user'
   return (
     <div className={`w-full flex ${mine ? 'justify-end' : 'justify-start'}`}>
@@ -11,3 +11,4 @@ export default function MessageBubble({ role, content, children }) {
     </div>
   )
 }
+export default React.memo(MessageBubble)

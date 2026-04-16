@@ -11,7 +11,7 @@ function SafeHost({ url }) {
   try { return <span>{new URL(url).hostname}</span> } catch { return null }
 }
 
-export default function SourceList({ items = [] }) {
+function SourceList({ items = [] }) {
   return (
     <div className="space-y-2">
       {items.map((s, idx) => (
@@ -80,3 +80,4 @@ export default function SourceList({ items = [] }) {
     </div>
   )
 }
+export default React.memo(SourceList)
